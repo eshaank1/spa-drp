@@ -1,6 +1,7 @@
 # spa-drp
 
 **Eshaan Kumar**
+
 **Mentor: Ph.D. Candidate Mr. Alex Kokot**
 
 Reinforcement Learning for Optimal Game-Theoretic Strategies
