@@ -18,6 +18,10 @@ python3 run_continue_training.py --no-bidirectional-threshold
 
 python3 run_continue_training.py --dry-run
 
-**To run test vs other bot:**
+**To run test vs previous ppo bot:**
 
 python3 evaluate_ppo_vs_ppo.py --challenger-model models/continued/smoke_challenger_final.zip --opponent-model pettingzoo_ppo/models/ppo_vs_smart_final.zip --episodes 100 --bidirectional
+
+**Human play vs new ppo bot:**
+
+python3 play_vs_ppo.py --model-path models/continued/smoke_challenger_final.zip
