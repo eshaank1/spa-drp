@@ -16,8 +16,13 @@ if str(PROJECT_ROOT) not in sys.path:
 from rl_pettingzoo_env import CardGameVsSmartParallelEnv
 
 
-def build_vec_env(num_envs: int, seed: int):
-    env = CardGameVsSmartParallelEnv(seed=seed, invalid_action_penalty=1.0)
+def build_vec_env(num_envs: int, seed: int, opponent_model_path: str | None = None, opponent_deterministic: bool = True):
+    env = CardGameVsSmartParallelEnv(
+        seed=seed,
+        invalid_action_penalty=1.0,
+        opponent_model_path=opponent_model_path,
+        opponent_deterministic=opponent_deterministic,
+    )
     env = ss.pettingzoo_env_to_vec_env_v1(env)
     env = ss.concat_vec_envs_v1(env, num_envs, num_cpus=0, base_class="stable_baselines3")
     env = VecMonitor(env)
@@ -32,12 +37,23 @@ def main() -> None:
     parser.add_argument("--model-dir", type=str, default="models")
     parser.add_argument("--model-name", type=str, default="ppo_vs_smart")
     parser.add_argument("--resume-from", type=str, default=None, help="Path to an existing PPO .zip to continue training from.")
+    parser.add_argument("--opponent-model", type=str, default=None, help="Path to a PPO .zip to use as the opponent (optional).")
+    parser.add_argument(
+        "--opponent-deterministic",
+        action="store_true",
+        help="Use deterministic actions for opponent model when provided.",
+    )
     args = parser.parse_args()
 
     model_dir = Path(args.model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    env = build_vec_env(num_envs=args.num_envs, seed=args.seed)
+    env = build_vec_env(
+        num_envs=args.num_envs,
+        seed=args.seed,
+        opponent_model_path=args.opponent_model,
+        opponent_deterministic=args.opponent_deterministic,
+    )
 
     checkpoint_cb = CheckpointCallback(
         save_freq=max(10_000 // max(args.num_envs, 1), 1),

@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from smart_bot import SmartBot
+from stable_baselines3 import PPO
 
 
 class CardGameVsSmartParallelEnv(ParallelEnv):
@@ -48,6 +49,8 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         self,
         seed: Optional[int] = None,
         render_mode: Optional[str] = None,
+        opponent_model_path: Optional[str] = None,
+        opponent_deterministic: bool = True,
         invalid_action_penalty: float = 0.2,
         round_win_reward: float = 1.0,
         game_win_reward: float = 5.0,
@@ -68,6 +71,17 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         self.smart_bot = SmartBot()
         self.rng = random.Random(seed)
         self.render_mode = render_mode
+
+        # Optional PPO model used as the opponent. If provided, the opponent's
+        # decisions will be produced by this model instead of the rule-based
+        # SmartBot.
+        self.opponent_model: Optional[PPO] = None
+        self.opponent_deterministic = opponent_deterministic
+        if opponent_model_path:
+            try:
+                self.opponent_model = PPO.load(opponent_model_path)
+            except Exception:
+                self.opponent_model = None
 
         self.invalid_action_penalty = invalid_action_penalty
         self.round_win_reward = round_win_reward
@@ -191,21 +205,40 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
             p1_score = self._score(self.p1_played)
             p2_score = self._score(self.p2_played)
             is_last_round = self.current_round == 3
+            # If an opponent PPO model is provided, use it. Otherwise, fall back
+            # to the SmartBot rule-based policy.
+            if self.opponent_model is not None:
+                opp_obs = self._get_opponent_observation()
+                try:
+                    action, _ = self.opponent_model.predict(opp_obs, deterministic=self.opponent_deterministic)
+                    action = int(action)
+                except Exception:
+                    action = 0
 
-            choice = self.smart_bot.decide_move(
-                hand=self.player2_hand,
-                player_score=p2_score,
-                opponent_score=p1_score,
-                is_last_round=is_last_round,
-                opponent_just_played=self.opponent_just_played,
-                my_rounds_won=self.rounds_won[1],
-                opponent_rounds_won=self.rounds_won[0],
-            )
+                if action == 0:
+                    # PASS
+                    played_card = None
+                elif action in self._action_to_rank:
+                    rank_choice = self._action_to_rank[action]
+                    if rank_choice in self.player2_hand:
+                        played_card = rank_choice
+                        self.player2_hand.remove(played_card)
+                        self.p2_played.append(played_card)
+            else:
+                choice = self.smart_bot.decide_move(
+                    hand=self.player2_hand,
+                    player_score=p2_score,
+                    opponent_score=p1_score,
+                    is_last_round=is_last_round,
+                    opponent_just_played=self.opponent_just_played,
+                    my_rounds_won=self.rounds_won[1],
+                    opponent_rounds_won=self.rounds_won[0],
+                )
 
-            if choice != "PASS" and choice in self.player2_hand:
-                played_card = choice
-                self.player2_hand.remove(played_card)
-                self.p2_played.append(played_card)
+                if choice != "PASS" and choice in self.player2_hand:
+                    played_card = choice
+                    self.player2_hand.remove(played_card)
+                    self.p2_played.append(played_card)
 
         if played_card is None:
             self.passed_players.add(2)
@@ -330,6 +363,46 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         obs[metadata_start + 8] = 1.0 if 2 in self.passed_players else 0.0
         obs[metadata_start + 9] = len(self.player1_hand) / 13.0
         obs[metadata_start + 10] = len(self.player2_hand) / 13.0
+
+        return obs
+
+
+    def _get_opponent_observation(self):
+        """Build an observation from player2's perspective compatible with a
+        model trained using the learner observation format.
+        """
+        obs = np.zeros(50, dtype=np.float32)
+
+        # 13 cards in opponent's hand (map to learner-hand indices)
+        for index, rank in enumerate(self.RANKS):
+            if rank in self.player2_hand:
+                obs[index] = 1.0
+
+        # 13 cards already played by the opponent (maps to learner-played)
+        for index, rank in enumerate(self.RANKS, start=13):
+            if rank in self.p2_played:
+                obs[index] = 1.0
+
+        # 13 cards already played by the learner (maps to opponent's observed opponent played)
+        for index, rank in enumerate(self.RANKS, start=26):
+            if rank in self.p1_played:
+                obs[index] = 1.0
+
+        # 11 metadata features (swap learner/opponent where appropriate)
+        metadata_start = 39
+        obs[metadata_start + 0] = self.current_round / 3.0
+        # Now rounds_won[1] is the 'learner' from opponent perspective
+        obs[metadata_start + 1] = self.rounds_won[1] / 2.0
+        obs[metadata_start + 2] = self.rounds_won[0] / 2.0
+        # Indicate whether it's the model's turn (opponent == player 2)
+        obs[metadata_start + 3] = 1.0 if self.current_player == 2 else 0.0
+        obs[metadata_start + 4] = 1.0 if self.current_player == 1 else 0.0
+        obs[metadata_start + 5] = 1.0 if self.first_player == 2 else 0.0
+        obs[metadata_start + 6] = 1.0 if self.first_player == 1 else 0.0
+        obs[metadata_start + 7] = 1.0 if 2 in self.passed_players else 0.0
+        obs[metadata_start + 8] = 1.0 if 1 in self.passed_players else 0.0
+        obs[metadata_start + 9] = len(self.player2_hand) / 13.0
+        obs[metadata_start + 10] = len(self.player1_hand) / 13.0
 
         return obs
 

@@ -1,0 +1,2 @@
+iter,saved_model,win_rate,ci_low,ci_high
+1,models/smoke/smoke_test_iter1.zip,0.0000,0.0000,0.1611
