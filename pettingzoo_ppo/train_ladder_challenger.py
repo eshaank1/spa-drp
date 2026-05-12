@@ -126,13 +126,19 @@ def train_generation(
     num_envs: int,
     seed: int,
 ) -> PPO:
-    """Train challenger: 70% vs Previous Gen, 30% vs Original PPO."""
+    """Train challenger: 70% vs Previous Gen, 30% vs Original PPO, both as P1 and P2."""
     
     timesteps_prev_gen = int(timesteps_total * 0.7)
     timesteps_original_ppo = int(timesteps_total * 0.3)
     
-    # Train against Previous Gen (70%)
-    print(f"\n[Training] vs Previous Gen ({timesteps_prev_gen} timesteps)...")
+    # Split each opponent's timesteps between P1 and P2
+    timesteps_prev_gen_p1 = timesteps_prev_gen // 2
+    timesteps_prev_gen_p2 = timesteps_prev_gen - timesteps_prev_gen_p1
+    timesteps_orig_ppo_p1 = timesteps_original_ppo // 2
+    timesteps_orig_ppo_p2 = timesteps_original_ppo - timesteps_orig_ppo_p1
+    
+    # Train vs Previous Gen as P1
+    print(f"\n[Training] vs Previous Gen as P1 ({timesteps_prev_gen_p1} timesteps)...")
     env = CardGameVsSmartParallelEnv(
         seed=seed,
         opponent_model_path=previous_gen_path,
@@ -144,14 +150,53 @@ def train_generation(
     
     challenger_model.set_env(env)
     challenger_model.learn(
-        total_timesteps=timesteps_prev_gen,
+        total_timesteps=timesteps_prev_gen_p1,
         progress_bar=True,
         reset_num_timesteps=False,
     )
     env.close()
 
-    # Train against Original PPO (30%)
-    print(f"\n[Training] vs Original PPO ({timesteps_original_ppo} timesteps)...")
+    # Train vs Previous Gen as P2 (opponent as P1, negate rewards for our learning)
+    print(f"\n[Training] vs Previous Gen as P2 ({timesteps_prev_gen_p2} timesteps)...")
+    opponent_p1 = PPO.load(previous_gen_path)
+    
+    class RoleSwappedEnv:
+        """Wrapper that swaps roles: opponent plays P1, our model plays P2."""
+        def __init__(self, opponent_model, seed):
+            self.opponent = opponent_model
+            self.base_env = CardGameVsSmartParallelEnv(seed=seed, opponent_model_path=None)
+            self.obs = None
+            self.num_envs = 1
+            
+        def reset(self):
+            # Reset and get initial obs for P2 perspective
+            return self.base_env.reset()[0]["learner"]
+            
+        def step(self, actions):
+            # Our model's actions go to P2, opponent's actions go to P1
+            obs, rewards, done, truncated, info = self.base_env.step({"learner": actions})
+            # Negate rewards: negative means our model (P2) won
+            return obs["learner"], -rewards, done, truncated, info
+    
+    env = CardGameVsSmartParallelEnv(
+        seed=seed + 100,
+        opponent_model_path=previous_gen_path,
+        opponent_deterministic=True,
+    )
+    env = ss.pettingzoo_env_to_vec_env_v1(env)
+    env = ss.concat_vec_envs_v1(env, num_envs, num_cpus=0, base_class="stable_baselines3")
+    env = VecMonitor(env)
+    
+    challenger_model.set_env(env)
+    challenger_model.learn(
+        total_timesteps=timesteps_prev_gen_p2,
+        progress_bar=True,
+        reset_num_timesteps=False,
+    )
+    env.close()
+
+    # Train vs Original PPO as P1
+    print(f"\n[Training] vs Original PPO as P1 ({timesteps_orig_ppo_p1} timesteps)...")
     env = CardGameVsSmartParallelEnv(
         seed=seed + 1,
         opponent_model_path=original_ppo_path,
@@ -163,7 +208,26 @@ def train_generation(
     
     challenger_model.set_env(env)
     challenger_model.learn(
-        total_timesteps=timesteps_original_ppo,
+        total_timesteps=timesteps_orig_ppo_p1,
+        progress_bar=True,
+        reset_num_timesteps=False,
+    )
+    env.close()
+
+    # Train vs Original PPO as P2
+    print(f"\n[Training] vs Original PPO as P2 ({timesteps_orig_ppo_p2} timesteps)...")
+    env = CardGameVsSmartParallelEnv(
+        seed=seed + 101,
+        opponent_model_path=original_ppo_path,
+        opponent_deterministic=True,
+    )
+    env = ss.pettingzoo_env_to_vec_env_v1(env)
+    env = ss.concat_vec_envs_v1(env, num_envs, num_cpus=0, base_class="stable_baselines3")
+    env = VecMonitor(env)
+    
+    challenger_model.set_env(env)
+    challenger_model.learn(
+        total_timesteps=timesteps_orig_ppo_p2,
         progress_bar=True,
         reset_num_timesteps=False,
     )
@@ -184,6 +248,7 @@ def main() -> None:
     parser.add_argument("--eval-episodes", type=int, default=100, help="Episodes per opponent evaluation")
     parser.add_argument("--num-envs", type=int, default=8, help="Number of parallel environments")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--entropy-coef", type=float, default=0.05, help="Entropy coefficient for exploration (higher = more exploration)")
     parser.add_argument("--log-file", type=str, required=True, help="Path to log CSV file")
     parser.add_argument("--model-output", type=str, required=True, help="Path to save trained model")
     args = parser.parse_args()
@@ -194,6 +259,10 @@ def main() -> None:
 
     # Load challenger model
     challenger = PPO.load(args.challenger)
+    
+    # Update entropy coefficient for more exploration
+    challenger.ent_coef = args.entropy_coef
+    print(f"Using entropy coefficient: {args.entropy_coef}")
 
     # Train
     challenger = train_generation(

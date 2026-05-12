@@ -59,6 +59,7 @@ def run_generation(
     eval_episodes: int,
     num_envs: int,
     seed: int,
+    entropy_coef: float,
 ) -> Tuple[bool, Optional[str]]:
     """Train one generation and return (success, model_path)."""
     gen_dir = out_root / f"gen_{generation}"
@@ -85,6 +86,8 @@ def run_generation(
         str(num_envs),
         "--seed",
         str(seed + generation),
+        "--entropy-coef",
+        str(entropy_coef),
         "--log-file",
         str(log_file),
         "--model-output",
@@ -95,7 +98,8 @@ def run_generation(
     print(f"Generation {generation}")
     print("=" * 70)
     print(f"Current champion: {champion_path}")
-    print(f"Training for {timesteps_total} timesteps (vs Previous Gen + Original PPO)")
+    print(f"Training for {timesteps_total} timesteps (vs Previous Gen + Original PPO, both roles)")
+    print(f"Entropy coefficient: {entropy_coef}")
     print(f"Will evaluate vs all 4 opponents")
     print(f"Stats will be logged to: {log_file}")
 
@@ -152,6 +156,12 @@ def main() -> None:
         help="Random seed (will be offset by generation).",
     )
     parser.add_argument(
+        "--entropy-coef",
+        type=float,
+        default=0.05,
+        help="Entropy coefficient for exploration (higher = more exploration, default 0.05).",
+    )
+    parser.add_argument(
         "--out-dir",
         type=str,
         default="models/ladder",
@@ -189,6 +199,7 @@ def main() -> None:
     print(f"Generations to train: {args.generations}")
     print(f"Timesteps per generation: {args.timesteps_total}")
     print(f"Eval episodes per opponent: {args.eval_episodes}")
+    print(f"Entropy coefficient: {args.entropy_coef}")
     print(f"Statistics log: {log_file}")
     print(f"{'='*70}\n")
 
@@ -204,6 +215,7 @@ def main() -> None:
             eval_episodes=args.eval_episodes,
             num_envs=args.num_envs,
             seed=args.seed,
+            entropy_coef=args.entropy_coef,
         )
 
         if success and trained_model is not None:

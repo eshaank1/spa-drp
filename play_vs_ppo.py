@@ -132,7 +132,7 @@ class CardGameVsPPO:
             return
 
         obs = self._build_observation()
-        action, _ = self.model.predict(obs, deterministic=True)
+        action, _ = self.model.predict(obs, deterministic=False)
         action = int(action)
 
         if action == 0:
