@@ -21,6 +21,10 @@ class CardGameVsPPO:
 
     def __init__(self, model_path: str):
         self.model = PPO.load(model_path)
+        self.model_path = model_path
+        
+        # Extract generation number from model path
+        self.generation = self._extract_generation(model_path)
 
         self.player1_deck = self.RANKS.copy()
         self.player2_deck = self.RANKS.copy()
@@ -39,6 +43,17 @@ class CardGameVsPPO:
         self.passed_players = set()
         self.p1_played: List[str] = []
         self.p2_played: List[str] = []
+
+    def _extract_generation(self, model_path: str) -> str:
+        """Extract generation number from model path."""
+        path = Path(model_path)
+        stem = path.stem  # e.g., "champion_gen105"
+        if "gen" in stem:
+            try:
+                return stem.split("gen")[-1]
+            except (ValueError, IndexError):
+                return "unknown"
+        return "unknown"
 
     def display_game_state(self, player_num: int):
         if player_num == 1:
@@ -135,22 +150,22 @@ class CardGameVsPPO:
         action, _ = self.model.predict(obs, deterministic=False)
         action = int(action)
 
+        # Build valid actions: 0 (pass) and 1-13 (cards in hand)
+        valid_actions = [0]  # Pass is always valid
+        for card_idx, rank in enumerate(self.RANKS, start=1):
+            if rank in self.player1_hand:
+                valid_actions.append(card_idx)
+
+        # If predicted action is invalid, sample from valid actions
+        if action not in valid_actions:
+            action = random.choice(valid_actions)
+
         if action == 0:
             print("PPO Bot passes")
             self.passed_players.add(1)
             return
 
-        if action not in range(1, 14):
-            print(f"PPO Bot produced invalid action {action} - treating as pass")
-            self.passed_players.add(1)
-            return
-
         card = self.RANKS[action - 1]
-        if card not in self.player1_hand:
-            print(f"PPO Bot tried to play {card} but does not have it - treating as pass")
-            self.passed_players.add(1)
-            return
-
         self.p1_played.append(card)
         self.player1_hand.remove(card)
         print(f"PPO Bot played: {card}")
@@ -223,6 +238,7 @@ class CardGameVsPPO:
         print("\n" + "=" * 50)
         print("CARD GAME: YOU vs PPO BOT")
         print("=" * 50)
+        print(f"Bot: Gen {self.generation}")
         print("PPO Bot is Player 1. You are Player 2.")
         print("First to win 2 rounds wins!")
         print("=" * 50)
