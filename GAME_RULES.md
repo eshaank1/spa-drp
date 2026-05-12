@@ -31,17 +31,17 @@ A game consists of **up to 3 rounds**. The first player to win 2 rounds wins the
 1. Players alternate taking turns, starting with the designated first player
 2. On each turn, a player must either:
    - **Play a card** from their hand (adds to their round total)
-   - **Pass** (no card is played, but they can play again if opponent passes)
+   - **Pass** (no card is played, and they cannot play again that round)
 
 #### Passing & Round End
-- Once both players have passed consecutively (in any order), the round ends
-- A player who passes can still play if their opponent plays again
+- Once both players have passed, the round ends
+- A player who passes cannot play again in that round
 - If a player has no cards left in their hand, they are forced to pass
 
 #### Round Duration
-- Rounds continue with alternating plays/passes until both players have passed consecutively
+- Rounds continue with alternating plays until both players have passed
 - This means:
-  - Both playing → Player 1 passes → Player 2 plays again → Player 1 passes → Both have now passed consecutively → **Round ends**
+  - Both playing → Player 1 passes → Player 2 plays again → Player 1 has passed → Player 2 passes → Both have now passed → **Round ends**
   - Or: Both players pass consecutively → **Round ends**
 
 ### Card Drawing
@@ -120,7 +120,7 @@ Round 1:
   Player 1 plays: Q (12) | Player 2 plays: J (11) | Running: P1=12, P2=11
   Player 1 plays: K (13) | Player 2 plays: 10 (10) | Running: P1=25, P2=21
   Player 1 passes | Player 2 plays: 9 (9) | Running: P1=25, P2=30
-  Player 1 passes | Player 2 passes | ROUND ENDS
+  Player 1 has passed | Player 2 passes | ROUND ENDS
   Final: Player 2 wins 30-25
   Scores: Player 1: 0 wins, Player 2: 1 win
 
