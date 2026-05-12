@@ -108,6 +108,18 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
     def action_space(self, agent: str):
         return self._action_spaces[agent]
 
+    def get_valid_actions_mask(self) -> np.ndarray:
+        """Return a mask of valid actions for the learner (player 1)."""
+        mask = np.zeros(14, dtype=np.uint8)
+        mask[0] = 1  # Pass is always valid
+        
+        # Mark cards in hand as valid
+        for card_idx, rank in enumerate(self.RANKS, start=1):
+            if rank in self.player1_hand:
+                mask[card_idx] = 1
+        
+        return mask
+
     def reset(self, seed: Optional[int] = None, options=None):
         if seed is not None:
             self.rng.seed(seed)
@@ -173,15 +185,29 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
 
         played_card = None
         if not self.player1_hand:
+            # No cards left - forced pass
             pass
         elif action == 0:
+            # Explicit pass
             pass
         elif action in self._action_to_rank and self._action_to_rank[action] in self.player1_hand:
+            # Valid card in hand
             played_card = self._action_to_rank[action]
             self.player1_hand.remove(played_card)
             self.p1_played.append(played_card)
         else:
-            reward -= self.invalid_action_penalty
+            # Invalid action: sample from valid actions instead
+            valid_actions = [0]  # Pass is always valid
+            for card_idx, rank in enumerate(self.RANKS, start=1):
+                if rank in self.player1_hand:
+                    valid_actions.append(card_idx)
+            
+            # Sample a random valid action
+            action = self.rng.choice(valid_actions)
+            if action > 0 and action in self._action_to_rank:
+                played_card = self._action_to_rank[action]
+                self.player1_hand.remove(played_card)
+                self.p1_played.append(played_card)
 
         if played_card is None:
             self.passed_players.add(1)
