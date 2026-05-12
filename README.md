@@ -105,4 +105,4 @@ cat ladder_training_stats.csv
 ## References & Resources
 
 - See [NOTES.md](NOTES.md) for complete command reference
-- See [GAME_RULES.md](GAME_RULES.md) for card game mechanics (if applicable)
+- See [GAME_RULES.md](GAME_RULES.md) for card game mechanics
