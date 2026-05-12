@@ -104,6 +104,7 @@ python3 evaluate_ppo_vs_ppo.py --challenger-model "$(ls -1t models/ladder/champi
 - Each generation trains vs only **2 opponents** (Previous Gen + Original PPO) but plays **both Player 1 and Player 2 roles** (50/50 split) for generalization.
 - Within each opponent, the split is: **70% vs Previous Gen, 30% vs Original PPO** (Previous Gen is stronger and more important).
 - Each generation evaluates vs all **4 opponents** (RandomBot, SmartBot, Original PPO, Previous Gen) for comprehensive tracking.
+- **Action masking** during both training and human play: The bot automatically corrects invalid actions (trying to play cards it doesn't have) by sampling from valid actions. No invalid plays allowed!
 - **Entropy coefficient** (default 0.05) controls exploration during training. Higher values = more diverse strategies but potentially less optimal. Use `--entropy-coef 0.1` for more robustness.
 - **No threshold logic** - every generation automatically gets promoted to keep the training loop flowing.
 - **Stochastic play during interactive mode** - The bot samples from its policy rather than always picking the "best" move, making it less predictable and more human-like.
