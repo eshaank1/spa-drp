@@ -4,6 +4,7 @@ import random
 from typing import List, Optional
 from smart_bot import SmartBot
 from random_bot import RandomBot
+from baseline_bot import BaselineBot
 
 
 class CardGameWithBots:
@@ -47,7 +48,53 @@ class CardGameWithBots:
             return SmartBot()
         elif player_type == 'random':
             return RandomBot()
+        elif player_type == 'baseline':
+            return BaselineBot()
         return None
+
+    def _get_bot_move(self, player_num: int, p1_played: List[str], p2_played: List[str], opponent_just_played: bool) -> str:
+        """Get move from a bot, handling different bot interfaces"""
+        if player_num == 1:
+            bot = self.player1_bot
+            bot_type = self.player1_type
+            hand = self.player1_hand
+            player_score = sum(self.RANK_VALUES[card] for card in p1_played)
+            opponent_score = sum(self.RANK_VALUES[card] for card in p2_played)
+            my_wins = self.rounds_won[0]
+            opp_wins = self.rounds_won[1]
+        else:
+            bot = self.player2_bot
+            bot_type = self.player2_type
+            hand = self.player2_hand
+            player_score = sum(self.RANK_VALUES[card] for card in p2_played)
+            opponent_score = sum(self.RANK_VALUES[card] for card in p1_played)
+            my_wins = self.rounds_won[1]
+            opp_wins = self.rounds_won[0]
+
+        is_last_round = (self.current_round == 3)
+
+        # BaselineBot uses different interface
+        if bot_type == 'baseline':
+            return bot.decide_move(
+                hand=hand,
+                my_score=player_score,
+                opp_score=opponent_score,
+                round_num=self.current_round,
+                my_wins=my_wins,
+                opp_wins=opp_wins,
+                opp_just_played=opponent_just_played,
+            )
+        else:
+            # SmartBot and RandomBot use this interface
+            return bot.decide_move(
+                hand=hand,
+                player_score=player_score,
+                opponent_score=opponent_score,
+                is_last_round=is_last_round,
+                opponent_just_played=opponent_just_played,
+                my_rounds_won=my_wins,
+                opponent_rounds_won=opp_wins,
+            )
 
     def display_game_state(self, player_num: int):
         """Display current state for a player"""
@@ -140,12 +187,8 @@ class CardGameWithBots:
                     # Bot decides
                     p1_score = sum(self.RANK_VALUES[card] for card in p1_played)
                     p2_score = sum(self.RANK_VALUES[card] for card in p2_played)
-                    is_last_round = (self.current_round == 3)
 
-                    choice = self.player1_bot.decide_move(
-                        self.player1_hand, p1_score, p2_score, is_last_round, opponent_just_played,
-                        self.rounds_won[0], self.rounds_won[1]
-                    )
+                    choice = self._get_bot_move(1, p1_played, p2_played, opponent_just_played)
 
                     if choice == 'PASS':
                         print(f"Player 1 ({self.player1_type}) passes")
@@ -197,12 +240,8 @@ class CardGameWithBots:
                     # Bot decides
                     p1_score = sum(self.RANK_VALUES[card] for card in p1_played)
                     p2_score = sum(self.RANK_VALUES[card] for card in p2_played)
-                    is_last_round = (self.current_round == 3)
 
-                    choice = self.player2_bot.decide_move(
-                        self.player2_hand, p2_score, p1_score, is_last_round, opponent_just_played,
-                        self.rounds_won[1], self.rounds_won[0]
-                    )
+                    choice = self._get_bot_move(2, p1_played, p2_played, opponent_just_played)
 
                     if choice == 'PASS':
                         print(f"Player 2 ({self.player2_type}) passes")
@@ -288,11 +327,13 @@ if __name__ == "__main__":
     print("="*50)
     print("1. Smart Bot (plays lowest cards, strategic)")
     print("2. Random Bot (random card selection)")
-    print("3. Smart Bot vs Random Bot (watch them play)")
+    print("3. Baseline Bot (heuristic-based strategy)")
+    print("4. Smart Bot vs Random Bot (watch them play)")
+    print("5. Smart Bot vs Baseline Bot (watch them play)")
     print("="*50)
 
     while True:
-        choice = input("Enter 1, 2, or 3: ").strip()
+        choice = input("Enter 1, 2, 3, 4, or 5: ").strip()
         if choice == '1':
             game = CardGameWithBots('human', 'smart')
             break
@@ -300,9 +341,15 @@ if __name__ == "__main__":
             game = CardGameWithBots('human', 'random')
             break
         elif choice == '3':
+            game = CardGameWithBots('human', 'baseline')
+            break
+        elif choice == '4':
             game = CardGameWithBots('smart', 'random')
             break
+        elif choice == '5':
+            game = CardGameWithBots('smart', 'baseline')
+            break
         else:
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
 
     game.play_game()
