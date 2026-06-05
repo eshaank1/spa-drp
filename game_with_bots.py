@@ -52,7 +52,8 @@ class CardGameWithBots:
             return BaselineBot()
         return None
 
-    def _get_bot_move(self, player_num: int, p1_played: List[str], p2_played: List[str], opponent_just_played: bool) -> str:
+    def _get_bot_move(self, player_num: int, p1_played: List[str], p2_played: List[str], 
+                      opponent_just_played: bool, opponent_has_passed: bool = False) -> str:
         """Get move from a bot, handling different bot interfaces"""
         if player_num == 1:
             bot = self.player1_bot
@@ -73,19 +74,28 @@ class CardGameWithBots:
 
         is_last_round = (self.current_round == 3)
 
-        # BaselineBot uses different interface
+        # BaselineBot uses the updated safe interface
         if bot_type == 'baseline':
-            return bot.decide_move(
+            result = bot.decide_move(
                 hand=hand,
                 my_score=player_score,
                 opp_score=opponent_score,
                 round_num=self.current_round,
                 my_wins=my_wins,
                 opp_wins=opp_wins,
-                opp_just_played=opponent_just_played,
+                opponent_has_passed=opponent_has_passed,
             )
+            # BaselineBot returns 0 for PASS or a card value (1-13)
+            if result == 0:
+                return 'PASS'
+            else:
+                # Convert card value to card name
+                for rank, value in self.RANK_VALUES.items():
+                    if value == result:
+                        return rank
+                return 'PASS'  # Fallback if invalid
         else:
-            # SmartBot and RandomBot use this interface
+            # SmartBot, RandomBot, and AgentBot use the legacy interface
             return bot.decide_move(
                 hand=hand,
                 player_score=player_score,
@@ -188,7 +198,8 @@ class CardGameWithBots:
                     p1_score = sum(self.RANK_VALUES[card] for card in p1_played)
                     p2_score = sum(self.RANK_VALUES[card] for card in p2_played)
 
-                    choice = self._get_bot_move(1, p1_played, p2_played, opponent_just_played)
+                    # Pass in '2 in passed_players' so BaselineBot knows if Player 2 passed
+                    choice = self._get_bot_move(1, p1_played, p2_played, opponent_just_played, opponent_has_passed=(2 in passed_players))
 
                     if choice == 'PASS':
                         print(f"Player 1 ({self.player1_type}) passes")
@@ -241,7 +252,8 @@ class CardGameWithBots:
                     p1_score = sum(self.RANK_VALUES[card] for card in p1_played)
                     p2_score = sum(self.RANK_VALUES[card] for card in p2_played)
 
-                    choice = self._get_bot_move(2, p1_played, p2_played, opponent_just_played)
+                    # Pass in '1 in passed_players' so BaselineBot knows if Player 1 passed
+                    choice = self._get_bot_move(2, p1_played, p2_played, opponent_just_played, opponent_has_passed=(1 in passed_players))
 
                     if choice == 'PASS':
                         print(f"Player 2 ({self.player2_type}) passes")
