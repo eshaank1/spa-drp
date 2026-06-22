@@ -5,6 +5,7 @@ from typing import List, Optional
 from smart_bot import SmartBot
 from random_bot import RandomBot
 from baseline_bot import BaselineBot
+from agent_bot import AgentBot
 
 
 class CardGameWithBots:
@@ -17,8 +18,8 @@ class CardGameWithBots:
         Initialize game with player types.
 
         Args:
-            player1_type: 'human', 'smart', or 'random'
-            player2_type: 'human', 'smart', or 'random'
+            player1_type: 'human', 'smart', 'random', 'baseline', or 'agent'
+            player2_type: 'human', 'smart', 'random', 'baseline', or 'agent'
         """
         self.player1_type = player1_type
         self.player2_type = player2_type
@@ -50,6 +51,8 @@ class CardGameWithBots:
             return RandomBot()
         elif player_type == 'baseline':
             return BaselineBot()
+        elif player_type == 'agent':
+            return AgentBot()
         return None
 
     def _get_bot_move(self, player_num: int, p1_played: List[str], p2_played: List[str], 
@@ -74,8 +77,8 @@ class CardGameWithBots:
 
         is_last_round = (self.current_round == 3)
 
-        # BaselineBot uses the updated safe interface
-        if bot_type == 'baseline':
+        # BaselineBot and AgentBot use the updated interface
+        if bot_type in ['baseline', 'agent']:
             result = bot.decide_move(
                 hand=hand,
                 my_score=player_score,
@@ -85,7 +88,7 @@ class CardGameWithBots:
                 opp_wins=opp_wins,
                 opponent_has_passed=opponent_has_passed,
             )
-            # BaselineBot returns 0 for PASS or a card value (1-13)
+            # Returns 0 for PASS or a card value (1-13)
             if result == 0:
                 return 'PASS'
             else:
@@ -95,7 +98,7 @@ class CardGameWithBots:
                         return rank
                 return 'PASS'  # Fallback if invalid
         else:
-            # SmartBot, RandomBot, and AgentBot use the legacy interface
+            # SmartBot and RandomBot use the legacy interface
             return bot.decide_move(
                 hand=hand,
                 player_score=player_score,
@@ -335,17 +338,19 @@ class CardGameWithBots:
 
 if __name__ == "__main__":
     print("\n" + "="*50)
-    print("CHOOSE YOUR OPPONENT")
+    print("CHOOSE YOUR MATCHUP")
     print("="*50)
-    print("1. Smart Bot (plays lowest cards, strategic)")
-    print("2. Random Bot (random card selection)")
-    print("3. Baseline Bot (heuristic-based strategy)")
-    print("4. Smart Bot vs Random Bot (watch them play)")
-    print("5. Smart Bot vs Baseline Bot (watch them play)")
+    print("1. Human vs Smart Bot")
+    print("2. Human vs Random Bot")
+    print("3. Human vs Baseline Bot")
+    print("4. Human vs Trained Agent")
+    print("5. Smart Bot vs Random Bot")
+    print("6. Smart Bot vs Baseline Bot")
+    print("7. Agent vs Baseline Bot")
     print("="*50)
 
     while True:
-        choice = input("Enter 1, 2, 3, 4, or 5: ").strip()
+        choice = input("Enter 1-7: ").strip()
         if choice == '1':
             game = CardGameWithBots('human', 'smart')
             break
@@ -356,12 +361,18 @@ if __name__ == "__main__":
             game = CardGameWithBots('human', 'baseline')
             break
         elif choice == '4':
-            game = CardGameWithBots('smart', 'random')
+            game = CardGameWithBots('human', 'agent')
             break
         elif choice == '5':
+            game = CardGameWithBots('smart', 'random')
+            break
+        elif choice == '6':
             game = CardGameWithBots('smart', 'baseline')
             break
+        elif choice == '7':
+            game = CardGameWithBots('agent', 'baseline')
+            break
         else:
-            print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
+            print("Invalid choice. Please enter 1-7.")
 
     game.play_game()
