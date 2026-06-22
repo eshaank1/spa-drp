@@ -101,6 +101,7 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         self.current_player = 1
         self.passed_players = set()
         self.opponent_just_played = False
+        self._action_log: List = []
 
     def observation_space(self, agent: str):
         return self._observation_spaces[agent]
@@ -141,6 +142,7 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
 
         self._reset_round_state(self.first_player)
         self.agents = self.possible_agents[:]
+        self._action_log = []
 
         auto_reward = self._advance_to_next_available_player()
         obs = self._get_observation()
@@ -151,6 +153,7 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         if not self.agents:
             return {}, {}, {}, {}, {}
 
+        self._action_log = []
         reward = 0.0
 
         self._advance_to_next_available_player()
@@ -218,7 +221,13 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         self.current_player = 2
 
         new_delta = self._round_score_delta()
-        reward += self.score_delta_scale * (new_delta - prev_delta)
+        # Binary lead-change signal: reward taking the lead, penalise losing it.
+        # Proportional card-value rewards (score_delta_scale * delta) incentivise
+        # playing the highest card possible regardless of strategic need.
+        if prev_delta <= 0 and new_delta > 0:
+            reward += self.score_delta_scale * 5   # just took the lead
+        elif prev_delta > 0 and new_delta <= 0:
+            reward -= self.score_delta_scale * 5   # just lost the lead
         reward += self._resolve_round_if_needed()
         return reward
 
@@ -226,6 +235,7 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         reward = 0.0
         prev_delta = self._round_score_delta()
 
+        hand_before = self.player2_hand.copy()
         played_card = None
         if self.player2_hand:
             p1_score = self._score(self.p1_played)
@@ -274,8 +284,23 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
 
         self.current_player = 1
 
+        # Log before _resolve_round_if_needed resets played cards and scores
+        self._action_log.append({
+            'round': self.current_round,
+            'card': played_card,
+            'hand_before': hand_before,
+            'p1_score': self._score(self.p1_played),
+            'p2_score': self._score(self.p2_played),
+            'rounds_won': list(self.rounds_won),
+        })
+
         new_delta = self._round_score_delta()
-        reward += self.score_delta_scale * (new_delta - prev_delta)
+        # Mirror the binary lead-change signal used in _apply_learner_action.
+        # Bot taking the lead is bad for the agent; bot losing it is good.
+        if prev_delta > 0 and new_delta <= 0:
+            reward -= self.score_delta_scale * 5   # bot just took the lead
+        elif prev_delta <= 0 and new_delta > 0:
+            reward += self.score_delta_scale * 5   # bot just lost the lead
         reward += self._resolve_round_if_needed()
         return reward
 
@@ -344,7 +369,7 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         self.current_player = starting_player
 
     def _is_game_over(self) -> bool:
-        return self.current_round > 3 and len(self.passed_players) >= 2
+        return self.rounds_won[0] >= 2 or self.rounds_won[1] >= 2 or self.current_round > 3
 
     def _get_action_mask(self) -> np.ndarray:
         """Return a mask of valid actions (1 = valid, 0 = invalid)."""
