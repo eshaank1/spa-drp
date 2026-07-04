@@ -51,9 +51,9 @@ class EvaluatorBot:
         
         print(f"✓ Loaded model from {model_path}")
         
-        # Initialize environment and bot
-        self.env = CardGameVsSmartParallelEnv()
-        self.bot = BaselineBot()
+        # Player 2 is played by BaselineBot inside the env (pluggable opponent),
+        # so the agent is genuinely evaluated against BaselineBot.
+        self.env = CardGameVsSmartParallelEnv(opponent="baseline")
     
     def _get_valid_actions_mask(self, hand) -> np.ndarray:
         """Create action mask from hand."""
@@ -107,31 +107,8 @@ class EvaluatorBot:
                             wins += 1
                     
                     else:
-                        # BaselineBot's turn (Player 2)
-                        hand = self.env.player2_hand
-                        p2_score = self.env._score(self.env.p2_played)
-                        p1_score = self.env._score(self.env.p1_played)
-                        is_last_round = self.env.current_round == 3
-                        
-                        action_str = self.bot.decide_move(
-                            hand=hand,
-                            player_score=p2_score,
-                            opponent_score=p1_score,
-                            is_last_round=is_last_round,
-                            opponent_just_played=self.env.opponent_just_played,
-                            my_rounds_won=self.env.rounds_won[1],
-                            opponent_rounds_won=self.env.rounds_won[0],
-                        )
-                        
-                        if action_str == "PASS":
-                            action = 0
-                        else:
-                            rank_to_idx = {
-                                "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
-                                "7": 7, "8": 8, "9": 9, "10": 10, "J": 11, "Q": 12, "K": 13
-                            }
-                            action = rank_to_idx.get(action_str, 0)
-                        
+                        # Player 2 (BaselineBot) is played automatically by the
+                        # env; just advance with a no-op learner action.
                         obs_dict, _, done_dict, trunc_dict, info = self.env.step({"learner": 0})
                         if obs_dict and "learner" in obs_dict:
                             obs = obs_dict["learner"]

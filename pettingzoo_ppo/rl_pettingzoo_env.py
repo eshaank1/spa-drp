@@ -55,7 +55,21 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         round_win_reward: float = 1.0,
         game_win_reward: float = 5.0,
         score_delta_scale: float = 0.02,
+        opponent: str = "smart",
+        opponent_fn=None,
     ):
+        # Player 2 (the opponent) policy. Resolved in this priority order each
+        # time an opponent move is needed:
+        #   1. opponent_fn  - a callable(env) -> action int (0=pass, 1..13=rank).
+        #                     Used for self-play against a frozen network snapshot.
+        #   2. opponent_model (from opponent_model_path) - an SB3 PPO model.
+        #   3. opponent kind string - "smart" (SmartBot, default) or
+        #      "baseline" (BaselineBot).
+        # Defaulting to "smart" keeps the existing Stable-Baselines3 ladder track
+        # unchanged.
+        self.opponent_kind = opponent
+        self.opponent_fn = opponent_fn
+        self.baseline_bot = None  # lazily created when first needed
         self.possible_agents = ["learner"]
         self.agents: List[str] = []
 
@@ -231,6 +245,81 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         reward += self._resolve_round_if_needed()
         return reward
 
+    def set_opponent(self, kind: Optional[str] = None, fn=None):
+        """Configure the Player 2 policy for subsequent episodes.
+
+        Pass ``fn`` (a callable taking this env and returning an action int) for
+        self-play against a network snapshot, or ``kind`` ("smart"/"baseline")
+        for a rule-based opponent. Passing ``fn`` takes precedence; passing
+        ``kind`` clears any previous callable.
+        """
+        if fn is not None:
+            self.opponent_fn = fn
+        elif kind is not None:
+            self.opponent_kind = kind
+            self.opponent_fn = None
+
+    def _opponent_action_int(self) -> int:
+        """Return Player 2's chosen action (0=pass, 1..13=rank index).
+
+        Resolves the opponent policy in priority order: self-play callable,
+        SB3 PPO model, then the configured rule-based bot.
+        """
+        # 1. Self-play / custom callable (operates on P2's perspective itself).
+        if self.opponent_fn is not None:
+            try:
+                return int(self.opponent_fn(self))
+            except Exception:
+                return 0
+
+        # 2. SB3 PPO opponent model.
+        if self.opponent_model is not None:
+            opp_obs = self._get_opponent_observation()
+            try:
+                action, _ = self.opponent_model.predict(
+                    opp_obs, deterministic=self.opponent_deterministic
+                )
+                return int(action)
+            except Exception:
+                return 0
+
+        # 3. Rule-based bot.
+        p1_score = self._score(self.p1_played)
+        p2_score = self._score(self.p2_played)
+        is_last_round = self.current_round == 3
+
+        if self.opponent_kind == "baseline":
+            if self.baseline_bot is None:
+                from baseline_bot import BaselineBot
+                self.baseline_bot = BaselineBot()
+            # BaselineBot returns 0 for pass or the card value (1..13), which
+            # matches our action indexing directly.
+            return int(
+                self.baseline_bot.decide_move(
+                    hand=self.player2_hand,
+                    my_score=p2_score,
+                    opp_score=p1_score,
+                    round_num=self.current_round,
+                    my_wins=self.rounds_won[1],
+                    opp_wins=self.rounds_won[0],
+                    opponent_has_passed=(1 in self.passed_players),
+                )
+            )
+
+        # Default: SmartBot (returns a card-rank string or "PASS").
+        choice = self.smart_bot.decide_move(
+            hand=self.player2_hand,
+            player_score=p2_score,
+            opponent_score=p1_score,
+            is_last_round=is_last_round,
+            opponent_just_played=self.opponent_just_played,
+            my_rounds_won=self.rounds_won[1],
+            opponent_rounds_won=self.rounds_won[0],
+        )
+        if choice == "PASS" or choice not in self._rank_to_action:
+            return 0
+        return self._rank_to_action[choice]
+
     def _apply_opponent_action(self) -> float:
         reward = 0.0
         prev_delta = self._round_score_delta()
@@ -238,41 +327,11 @@ class CardGameVsSmartParallelEnv(ParallelEnv):
         hand_before = self.player2_hand.copy()
         played_card = None
         if self.player2_hand:
-            p1_score = self._score(self.p1_played)
-            p2_score = self._score(self.p2_played)
-            is_last_round = self.current_round == 3
-            # If an opponent PPO model is provided, use it. Otherwise, fall back
-            # to the SmartBot rule-based policy.
-            if self.opponent_model is not None:
-                opp_obs = self._get_opponent_observation()
-                try:
-                    action, _ = self.opponent_model.predict(opp_obs, deterministic=self.opponent_deterministic)
-                    action = int(action)
-                except Exception:
-                    action = 0
-
-                if action == 0:
-                    # PASS
-                    played_card = None
-                elif action in self._action_to_rank:
-                    rank_choice = self._action_to_rank[action]
-                    if rank_choice in self.player2_hand:
-                        played_card = rank_choice
-                        self.player2_hand.remove(played_card)
-                        self.p2_played.append(played_card)
-            else:
-                choice = self.smart_bot.decide_move(
-                    hand=self.player2_hand,
-                    player_score=p2_score,
-                    opponent_score=p1_score,
-                    is_last_round=is_last_round,
-                    opponent_just_played=self.opponent_just_played,
-                    my_rounds_won=self.rounds_won[1],
-                    opponent_rounds_won=self.rounds_won[0],
-                )
-
-                if choice != "PASS" and choice in self.player2_hand:
-                    played_card = choice
+            action = self._opponent_action_int()
+            if action != 0 and action in self._action_to_rank:
+                rank_choice = self._action_to_rank[action]
+                if rank_choice in self.player2_hand:
+                    played_card = rank_choice
                     self.player2_hand.remove(played_card)
                     self.p2_played.append(played_card)
 

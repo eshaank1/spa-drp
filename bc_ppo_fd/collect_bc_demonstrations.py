@@ -1,16 +1,20 @@
 """
 Data Collection Script: Generate BC Demonstrations
 
-This script shows how to collect 10,000 games of BaselineBot vs BaselineBot
-and extract (state, action_mask, action) tuples for behavioral cloning.
+Collects games of BaselineBot vs BaselineBot and extracts
+(state, action_mask, action) tuples for behavioral cloning.
 
-In your specific setup, you would integrate this with your environment and bot.
+The learning agent is always Player 1 in the environment, and the environment
+now plays Player 2 with BaselineBot (opponent="baseline"). We drive Player 1
+with the *same* BaselineBot and record only Player 1's decisions, so every
+demonstration is a genuine BaselineBot move captured in the exact Player-1
+observation format the agent trains and is evaluated in. No state inversion is
+required (and the previously-broken Player-2 branch is gone).
 """
 
 import sys
 from pathlib import Path
 import numpy as np
-import torch
 from typing import List, Tuple, Optional
 import logging
 
@@ -20,15 +24,14 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from pettingzoo_ppo.rl_pettingzoo_env import CardGameVsSmartParallelEnv
 from baseline_bot import BaselineBot
-from state_inverter import invert_state
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class BCDemoCollector:
-    """Collect behavioral cloning demonstrations from bot vs bot games."""
-    
+    """Collect behavioral cloning demonstrations from BaselineBot vs BaselineBot."""
+
     def __init__(self, num_games: int = 10000, seed: int = 42):
         """
         Args:
@@ -37,145 +40,68 @@ class BCDemoCollector:
         """
         self.num_games = num_games
         self.seed = seed
-        self.rng = np.random.RandomState(seed)
-        
-        # Initialize environment and bot
-        # Note: This uses the existing environment from your codebase
-        self.env = CardGameVsSmartParallelEnv(seed=seed)
+
+        # Player 2 is BaselineBot (played internally by the env); we drive
+        # Player 1 with BaselineBot too -> true BaselineBot-vs-BaselineBot games.
+        self.env = CardGameVsSmartParallelEnv(seed=seed, opponent="baseline")
         self.bot = BaselineBot()
-        
+
         self.demonstrations: List[Tuple[np.ndarray, np.ndarray, int]] = []
-    
+
     def _get_valid_actions_mask(self, hand: List[str]) -> np.ndarray:
-        """Create action mask from hand."""
+        """Create action mask from hand (Pass + cards in hand)."""
         mask = np.zeros(14, dtype=np.float32)
         mask[0] = 1.0  # Pass is always valid
-        
-        # Map card ranks to action indices (1-13)
-        rank_to_idx = {
-            "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
-            "7": 7, "8": 8, "9": 9, "10": 10, "J": 11, "Q": 12, "K": 13
-        }
-        
-        for card in hand:
-            if card in rank_to_idx:
-                mask[rank_to_idx[card]] = 1.0
-        
+        for card_idx, rank in enumerate(self.env.RANKS, start=1):
+            if rank in hand:
+                mask[card_idx] = 1.0
         return mask
-    
-    def _action_to_card(self, action: int) -> Optional[str]:
-        """Convert action index to card rank."""
-        if action == 0:
-            return None  # Pass
-        
-        rank_map = {
-            1: "A", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6",
-            7: "7", 8: "8", 9: "9", 10: "10", 11: "J", 12: "Q", 13: "K"
-        }
-        
-        return rank_map.get(action)
-    
-    def collect_from_single_game(self) -> Tuple[int, int]:
+
+    def _baseline_p1_action(self) -> int:
+        """BaselineBot's action for Player 1 in the current env state (0..13)."""
+        # BaselineBot returns 0 (pass) or the card value 1..13, which equals our
+        # action index directly.
+        return int(
+            self.bot.decide_move(
+                hand=self.env.player1_hand,
+                my_score=self.env._score(self.env.p1_played),
+                opp_score=self.env._score(self.env.p2_played),
+                round_num=self.env.current_round,
+                my_wins=self.env.rounds_won[0],
+                opp_wins=self.env.rounds_won[1],
+                opponent_has_passed=(2 in self.env.passed_players),
+            )
+        )
+
+    def collect_from_single_game(self) -> Tuple[int, Optional[tuple]]:
         """
-        Simulate one game and collect demonstrations.
-        
+        Simulate one game and collect Player-1 BaselineBot demonstrations.
+
         Returns:
-            Tuple of (num_demos_collected, winner)
+            Tuple of (num_demos_collected, final_rounds_won)
         """
-        obs, _ = self.env.reset()
+        obs_dict, _ = self.env.reset()
+        obs = obs_dict["learner"]
         done = False
         game_winner = None
         demos_this_game = 0
-        
+
         while not done:
-            # Determine whose turn it is
-            if self.env.current_player == 1:
-                # Agent's turn (player 1) - we track this
-                # (In full training, this would be replaced by agent decisions,
-                # but for demos we use the bot's policy)
-                hand = self.env.player1_hand
-                mask = self._get_valid_actions_mask(hand)
-                
-                # Get bot decision (same strategy as player 2)
-                p1_score = self.env._score(self.env.p1_played)
-                p2_score = self.env._score(self.env.p2_played)
-                is_last_round = self.env.current_round == 3
-                
-                action_str = self.bot.decide_move(
-                    hand=hand,
-                    player_score=p1_score,
-                    opponent_score=p2_score,
-                    is_last_round=is_last_round,
-                    opponent_just_played=self.env.opponent_just_played,
-                    my_rounds_won=self.env.rounds_won[0],
-                    opponent_rounds_won=self.env.rounds_won[1],
-                )
-                
-                # Convert to action index
-                if action_str == "PASS":
-                    action = 0
-                else:
-                    rank_to_idx = {
-                        "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
-                        "7": 7, "8": 8, "9": 9, "10": 10, "J": 11, "Q": 12, "K": 13
-                    }
-                    action = rank_to_idx.get(action_str, 0)
-                
-                # Store demonstration (player 1's perspective, no inversion needed)
-                self.demonstrations.append((obs.copy(), mask.copy(), action))
-                demos_this_game += 1
-                
-                # Step environment
-                obs, _, done, info = self.env.step({"learner": action})
-                if done:
-                    game_winner = info["learner"]["final_rounds_won"]
-            
-            else:
-                # Player 2's turn (bot's perspective)
-                hand = self.env.player2_hand
-                mask = self._get_valid_actions_mask(hand)
-                
-                # Get bot decision
-                p2_score = self.env._score(self.env.p2_played)
-                p1_score = self.env._score(self.env.p1_played)
-                is_last_round = self.env.current_round == 3
-                
-                action_str = self.bot.decide_move(
-                    hand=hand,
-                    player_score=p2_score,
-                    opponent_score=p1_score,
-                    is_last_round=is_last_round,
-                    opponent_just_played=self.env.opponent_just_played,
-                    my_rounds_won=self.env.rounds_won[1],
-                    opponent_rounds_won=self.env.rounds_won[0],
-                )
-                
-                # Convert to action index
-                if action_str == "PASS":
-                    action = 0
-                else:
-                    rank_to_idx = {
-                        "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
-                        "7": 7, "8": 8, "9": 9, "10": 10, "J": 11, "Q": 12, "K": 13
-                    }
-                    action = rank_to_idx.get(action_str, 0)
-                
-                # Get observation from player 2's perspective
-                obs_p2 = self.env._get_opponent_observation()
-                
-                # CRITICAL: Invert to player 1's perspective for training
-                obs_p2_torch = torch.tensor(obs_p2, dtype=torch.float32)
-                obs_p1_inverted = invert_state(obs_p2_torch).numpy().astype(np.float32)
-                
-                # Store demonstration (inverted perspective)
-                self.demonstrations.append((obs_p1_inverted.copy(), mask.copy(), action))
-                demos_this_game += 1
-                
-                # Step environment
-                obs, _, done, info = self.env.step({"learner": 0})  # Dummy action
-                if done:
-                    game_winner = info["learner"]["final_rounds_won"]
-        
+            # The env auto-plays Player 2; control returns here on Player 1's turn.
+            mask = self._get_valid_actions_mask(self.env.player1_hand)
+            action = self._baseline_p1_action()
+
+            # Record the Player-1 decision in the agent's native observation format.
+            self.demonstrations.append((obs.copy(), mask.copy(), action))
+            demos_this_game += 1
+
+            obs_dict, _, done_dict, _, info = self.env.step({"learner": action})
+            done = done_dict["learner"]
+            if obs_dict and "learner" in obs_dict:
+                obs = obs_dict["learner"]
+            if done:
+                game_winner = info["learner"]["final_rounds_won"]
+
         return demos_this_game, game_winner
     
     def collect_demonstrations(self, verbose: bool = True) -> List[Tuple[np.ndarray, np.ndarray, int]]:
@@ -232,6 +158,27 @@ class BCDemoCollector:
         logger.info(f"Loaded {len(self.demonstrations)} demos from {filepath}")
         
         return self.demonstrations
+
+
+def load_or_collect_demonstrations(
+    filepath: str,
+    num_games: int = 5000,
+    seed: int = 42,
+    verbose: bool = True,
+) -> List[Tuple[np.ndarray, np.ndarray, int]]:
+    """Load demonstrations from ``filepath`` if it exists, else collect & save.
+
+    Returns the list of (state, action_mask, action) tuples.
+    """
+    path = Path(filepath)
+    collector = BCDemoCollector(num_games=num_games, seed=seed)
+    if path.exists():
+        demos = collector.load_demonstrations(str(path))
+        if demos:
+            return demos
+    demos = collector.collect_demonstrations(verbose=verbose)
+    collector.save_demonstrations(str(path))
+    return demos
 
 
 def main():

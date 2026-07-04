@@ -62,6 +62,9 @@ class CardGameWithBots:
             bot = self.player1_bot
             bot_type = self.player1_type
             hand = self.player1_hand
+            my_played = p1_played
+            opp_played = p2_played
+            opp_hand_size = len(self.player2_hand)
             player_score = sum(self.RANK_VALUES[card] for card in p1_played)
             opponent_score = sum(self.RANK_VALUES[card] for card in p2_played)
             my_wins = self.rounds_won[0]
@@ -70,6 +73,9 @@ class CardGameWithBots:
             bot = self.player2_bot
             bot_type = self.player2_type
             hand = self.player2_hand
+            my_played = p2_played
+            opp_played = p1_played
+            opp_hand_size = len(self.player1_hand)
             player_score = sum(self.RANK_VALUES[card] for card in p2_played)
             opponent_score = sum(self.RANK_VALUES[card] for card in p1_played)
             my_wins = self.rounds_won[1]
@@ -77,8 +83,32 @@ class CardGameWithBots:
 
         is_last_round = (self.current_round == 3)
 
-        # BaselineBot and AgentBot use the updated interface
-        if bot_type in ['baseline', 'agent']:
+        # AgentBot needs the full round state to reconstruct its training-time
+        # observation (played cards, hand sizes, first-player flag).
+        if bot_type == 'agent':
+            result = bot.decide_move(
+                hand=hand,
+                my_score=player_score,
+                opp_score=opponent_score,
+                round_num=self.current_round,
+                my_wins=my_wins,
+                opp_wins=opp_wins,
+                opponent_has_passed=opponent_has_passed,
+                my_played=my_played,
+                opp_played=opp_played,
+                opp_hand_size=opp_hand_size,
+                first_player_is_me=(self.first_player == player_num),
+                i_have_passed=False,
+            )
+            if result == 0:
+                return 'PASS'
+            for rank, value in self.RANK_VALUES.items():
+                if value == result:
+                    return rank
+            return 'PASS'
+
+        # BaselineBot uses the updated interface (scores only)
+        if bot_type == 'baseline':
             result = bot.decide_move(
                 hand=hand,
                 my_score=player_score,

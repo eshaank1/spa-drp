@@ -135,20 +135,22 @@ class PlayVsTrainedAgent:
         for rank in p1_played:
             obs[26 + self.RANKS.index(rank)] = 1.0
         
-        # Metadata (11)
+        # Metadata (11) — built from the agent's own ("learner") perspective so
+        # it matches rl_pettingzoo_env._get_observation, the format the net was
+        # trained on. The agent is Player 2 here; "me" = P2, "opp" = P1.
         metadata_start = 39
-        obs[metadata_start + 0] = (self.current_round - 1) / 3.0  # Round (0-indexed)
-        obs[metadata_start + 1] = self.rounds_won[1] / 2.0  # My rounds won (agent is player 2)
-        obs[metadata_start + 2] = self.rounds_won[0] / 2.0  # Opponent rounds won (player 1)
-        obs[metadata_start + 3] = 0.0  # Current player is 1 (always 0 for agent perspective)
-        obs[metadata_start + 4] = 1.0  # Current player is 2 (always 1 for agent perspective)
-        obs[metadata_start + 5] = 1.0 if self.first_player == 1 else 0.0
-        obs[metadata_start + 6] = 1.0 if self.first_player == 2 else 0.0
-        obs[metadata_start + 7] = 1.0 if opponent_has_passed else 0.0  # Player 1 passed (opponent)
-        obs[metadata_start + 8] = 0.0  # Player 2 passed (agent) - not relevant in this context
-        obs[metadata_start + 9] = len(my_hand) / 13.0  # Agent hand size
-        obs[metadata_start + 10] = len(p1_played) / 13.0  # Opponent played count
-        
+        obs[metadata_start + 0] = self.current_round / 3.0
+        obs[metadata_start + 1] = self.rounds_won[1] / 2.0  # my rounds won (P2)
+        obs[metadata_start + 2] = self.rounds_won[0] / 2.0  # opp rounds won (P1)
+        obs[metadata_start + 3] = 1.0  # it is my turn (learner is always to-move)
+        obs[metadata_start + 4] = 0.0
+        obs[metadata_start + 5] = 1.0 if self.first_player == 2 else 0.0  # first player is me?
+        obs[metadata_start + 6] = 1.0 if self.first_player == 1 else 0.0  # first player is opp?
+        obs[metadata_start + 7] = 0.0  # I (agent) have passed — false at decision time
+        obs[metadata_start + 8] = 1.0 if opponent_has_passed else 0.0  # opponent passed
+        obs[metadata_start + 9] = len(my_hand) / 13.0  # my hand size
+        obs[metadata_start + 10] = len(self.player1_hand) / 13.0  # opponent hand size
+
         return obs
 
     def _get_valid_actions_mask(self, hand: List[str]) -> np.ndarray:

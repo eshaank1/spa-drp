@@ -55,9 +55,8 @@ class VerboseEvaluator:
         
         print(f"✓ Loaded model from {model_path}\n")
         
-        # Initialize environment and bot
-        self.env = CardGameVsSmartParallelEnv()
-        self.bot = BaselineBot()
+        # Player 2 is played by BaselineBot inside the env (pluggable opponent).
+        self.env = CardGameVsSmartParallelEnv(opponent="baseline")
     
     def _get_valid_actions_mask(self, hand) -> np.ndarray:
         """Create action mask from hand."""

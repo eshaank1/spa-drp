@@ -351,16 +351,27 @@ class PPOWithAuxiliaryLossUpdater:
         num_epochs: int = 3,
         gamma: float = 0.99,
         gae_lambda: float = 0.95,
+        demo_batch: Optional[Dict[str, torch.Tensor]] = None,
+        demo_minibatch: int = 512,
     ) -> Dict[str, float]:
         """
         Perform PPO update with auxiliary BC loss.
-        
+
         Args:
             rollouts: RolloutBatch with combined agent and bot data
             num_epochs: Number of passes over the data
             gamma: Discount factor
             gae_lambda: GAE parameter
-        
+            demo_batch: Optional dict with keys "observations", "action_masks",
+                "actions" (tensors) holding offline expert demonstrations. When
+                provided, the auxiliary BC loss is computed from a random
+                minibatch of these demonstrations each epoch. This is the proper
+                PPO-fD signal and does not depend on bot steps appearing in the
+                rollout. Falls back to in-rollout ``is_bot_data`` steps if no
+                demo_batch is given.
+            demo_minibatch: Number of demonstrations sampled per epoch for the
+                BC loss (capped at the demo set size).
+
         Returns:
             Dictionary with loss components:
               - total_loss
@@ -369,6 +380,13 @@ class PPOWithAuxiliaryLossUpdater:
               - value_loss
               - entropy_bonus
         """
+        demo_obs = demo_masks = demo_actions = None
+        num_demos = 0
+        if demo_batch is not None:
+            demo_obs = demo_batch["observations"]
+            demo_masks = demo_batch["action_masks"]
+            demo_actions = demo_batch["actions"]
+            num_demos = demo_obs.shape[0]
         self.actor_critic.train()
         
         # Compute advantages and returns for ALL data
@@ -417,29 +435,36 @@ class PPOWithAuxiliaryLossUpdater:
                 ppo_loss = torch.tensor(0.0, device=self.device)
                 entropy_bonus = torch.tensor(0.0, device=self.device)
             
-            # ===== BC Loss (Bot Data) =====
-            # For bot data, we ignore advantage estimates and just do supervised learning.
-            # Shape annotations:
-            #   bot_obs: (num_bot, 50)
-            #   bot_actions: (num_bot,)
-            #   bot_masks: (num_bot, 14)
-            
-            if bot_mask.any():
+            # ===== BC Loss (Expert Demonstrations) =====
+            # Preferred source: an offline demonstration buffer (PPO-fD). We
+            # supervise the policy to match the expert's action on demo states.
+            # Fall back to in-rollout bot steps for backward compatibility.
+            if num_demos > 0:
+                if num_demos > demo_minibatch:
+                    idx = torch.randint(0, num_demos, (demo_minibatch,), device=self.device)
+                    bc_loss = self.compute_bc_loss(
+                        demo_obs[idx], demo_actions[idx], demo_masks[idx]
+                    )
+                else:
+                    bc_loss = self.compute_bc_loss(demo_obs, demo_actions, demo_masks)
+            elif bot_mask.any():
                 bot_obs = rollouts.observations[bot_mask]  # (num_bot, 50)
                 bot_actions = rollouts.actions[bot_mask]  # (num_bot,)
                 bot_masks = rollouts.action_masks[bot_mask]  # (num_bot, 14)
-                
                 bc_loss = self.compute_bc_loss(bot_obs, bot_actions, bot_masks)
             else:
                 bc_loss = torch.tensor(0.0, device=self.device)
-            
-            # ===== Value Loss (All Data) =====
-            # We train the value function on both agent and bot data.
-            # Shape annotations:
-            #   observations: (traj_len, 50)
-            #   returns: (traj_len,)
-            
-            value_loss = self.compute_value_loss(rollouts.observations, returns)
+
+            # ===== Value Loss (Agent Data) =====
+            # Train the value function on the agent's own transitions only. Demo
+            # states are kept out of the value/advantage computation since they
+            # carry no rollout reward/return.
+            if agent_mask.any():
+                value_loss = self.compute_value_loss(
+                    rollouts.observations[agent_mask], returns[agent_mask]
+                )
+            else:
+                value_loss = self.compute_value_loss(rollouts.observations, returns)
             
             # ===== Combined Loss =====
             # Total Loss = PPO_Loss + lambda * BC_Loss + value_coeff * Value_Loss - entropy_coeff * Entropy_Bonus
