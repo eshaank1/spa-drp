@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Play vs the RL Agent — spa-drp</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Play against the trained agent</h1>
+    <p class="subtitle">
+      A PPO agent trained with behavioral cloning + PPO-fD on this
+      <a href="https://github.com/eshaank1/spa-drp">card strategy game</a>.
+      You are Player 1; the agent is Player 2. First to win 2 of 3 rounds wins.
+    </p>
+  </header>
+
+  <main id="app">
+    <section id="status-bar">
+      <div class="tally">Session: You <span id="tally-you">0</span> — Agent <span id="tally-agent">0</span></div>
+      <div class="round-info">Round <span id="round-num">1</span> / 3</div>
+      <div class="rounds-won">Rounds won — You: <span id="rounds-you">0</span> · Agent: <span id="rounds-agent">0</span></div>
+    </section>
+
+    <section id="table">
+      <div class="player-area">
+        <h2>Agent (Player 2)</h2>
+        <div class="hand-count"><span id="agent-hand-count">7</span> cards in hand</div>
+        <div class="played" id="agent-played"></div>
+      </div>
+
+      <div class="player-area">
+        <h2>You (Player 1)</h2>
+        <div class="played" id="you-played"></div>
+        <div class="hand" id="your-hand"></div>
+        <button id="pass-btn">Pass</button>
+      </div>
+    </section>
+
+    <section id="log" aria-live="polite"></section>
+
+    <section id="game-over" hidden>
+      <p id="game-over-message"></p>
+      <button id="play-again-btn">Play again</button>
+    </section>
+  </main>
+
+  <footer>
+    <a href="https://github.com/eshaank1/spa-drp">View source on GitHub</a>
+  </footer>
+
+  <script src="game.js"></script>
+  <script src="agent.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

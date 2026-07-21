@@ -1,0 +1,130 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --text: #e8e8ea;
+  --muted: #9aa0ab;
+  --accent: #4f8cff;
+  --card-bg: #232733;
+  --card-border: #343a48;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+header, footer {
+  padding: 1rem 1.5rem;
+  text-align: center;
+}
+
+header h1 { margin-bottom: 0.25rem; }
+.subtitle { color: var(--muted); max-width: 640px; margin: 0 auto; font-size: 0.9rem; }
+
+main#app {
+  flex: 1;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 1rem 2rem;
+}
+
+#status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.player-area {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.player-area h2 { margin: 0 0 0.5rem; font-size: 1rem; color: var(--muted); }
+
+.hand, .played {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 3.5rem;
+}
+
+.card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 3.75rem;
+  border-radius: 6px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  font-weight: 600;
+}
+
+button.card {
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+button.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+button.card:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+.played .card { background: transparent; border-style: dashed; color: var(--muted); }
+
+#pass-btn {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+#pass-btn:hover { border-color: var(--accent); }
+#pass-btn:disabled { opacity: 0.4; cursor: default; }
+
+#log {
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-height: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+#game-over {
+  text-align: center;
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+#game-over-message { font-size: 1.25rem; margin-bottom: 1rem; }
+#play-again-btn {
+  padding: 0.6rem 1.5rem;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hand-count { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
+
+footer a, .subtitle a { color: var(--accent); }
+
+@media (max-width: 480px) {
+  .card { width: 2.25rem; height: 3rem; font-size: 0.85rem; }
+}
