@@ -362,7 +362,7 @@ def main(args):
     env = CardGameVsSmartParallelEnv(seed=42)
     trainer = PPOTrainer(env, device=device)
     updater = PPOWithAuxiliaryLossUpdater(
-        actor_critic, device=device, bc_lambda=args.bc_lambda, entropy_coeff=args.entropy_coeff,
+        actor_critic, device=device, bc_lambda=args.bc_lambda_start, entropy_coeff=args.entropy_coeff,
     )
 
     # Frozen self-play snapshot (initialized to the current policy).
@@ -377,6 +377,12 @@ def main(args):
             trainer.set_opponent_pool(["baseline", "smart"])
         else:
             trainer.set_opponent_pool(["baseline", "smart", "self"], self_play_fn)
+
+        # Decay the auxiliary BC loss weight over training so PPO is
+        # increasingly free to move away from the BaselineBot-clone anchor
+        # instead of being pinned near it for the whole run.
+        progress = step / max(args.num_ppo_steps - 1, 1)
+        updater.bc_lambda = args.bc_lambda_start + (args.bc_lambda_end - args.bc_lambda_start) * progress
 
         rollout, env_metrics = trainer.collect_rollouts(actor_critic, num_steps=args.rollout_steps)
         ppo_metrics = updater.update(
@@ -393,6 +399,7 @@ def main(args):
             logger.info(
                 f"Step {step + 1:3d}: Loss={ppo_metrics['total_loss']:7.4f} | "
                 f"PPO={ppo_metrics['ppo_loss']:7.4f} | BC={ppo_metrics['bc_loss']:7.4f} | "
+                f"bc_lambda={updater.bc_lambda:.3f} | "
                 f"WR(baseline)={wr_base:.1%} | WR(smart)={wr_smart:.1%} | "
                 f"Eps={env_metrics['num_episodes']}"
             )
@@ -419,9 +426,12 @@ if __name__ == "__main__":
     parser.add_argument("--bc-target-acc", type=float, default=0.75)
     parser.add_argument("--num-ppo-steps", type=int, default=150)
     parser.add_argument("--rollout-steps", type=int, default=2048)
-    parser.add_argument("--bc-lambda", type=float, default=0.2,
-                        help="Weight of the auxiliary BC loss in PPO-fD")
-    parser.add_argument("--entropy-coeff", type=float, default=0.01)
+    parser.add_argument("--bc-lambda-start", type=float, default=0.2,
+                        help="Initial weight of the auxiliary BC loss in PPO-fD")
+    parser.add_argument("--bc-lambda-end", type=float, default=0.02,
+                        help="Final weight of the auxiliary BC loss, linearly decayed "
+                             "over --num-ppo-steps so PPO can climb above the BC anchor")
+    parser.add_argument("--entropy-coeff", type=float, default=0.02)
     parser.add_argument("--self-play-after", type=int, default=20,
                         help="PPO step at which self-play opponents join the pool")
     parser.add_argument("--snapshot-every", type=int, default=10,
