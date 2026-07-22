@@ -24,6 +24,16 @@ The system includes comprehensive evaluation metrics (win rates, confidence inte
 
 ---
 
+## Play against the trained agent
+
+Try beating the agent yourself, right in your browser — no setup required:
+
+**[Play now](https://eshaank1.github.io/spa-drp/)**
+
+The page runs the trained network (`bc_ppo_fd/agent_final.pt`) entirely client-side in JavaScript; see `docs/` for the source and `scripts/export_agent_weights.py` for how the weights get exported from the PyTorch checkpoint.
+
+---
+
 ## Project Structure
 
 ```
