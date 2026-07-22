@@ -103,14 +103,26 @@
     }
   }
 
-  function runAgentTurnsIfAny() {
-    // Resolve any number of consecutive agent turns (e.g. the agent may act
-    // again immediately if the human already passed this round).
-    while (!state.gameOver && CardGame.actingPlayer(state) === 2) {
-      const move =
-        state.player2Hand.length === 0 ? { type: 'pass' } : Agent.chooseMove(weights, state);
-      CardGame.applyMove(state, 2, move);
-      maybeLogRoundResult();
+  function runAutoMovesIfAny() {
+    // Resolve any number of consecutive automatic turns: the agent's own
+    // turns, plus a forced pass for the human whenever it's their turn but
+    // their hand is empty (mirrors GAME_RULES.md's "no cards left -> forced
+    // pass", which game.js already enforces for whichever side calls
+    // applyMove — the human side just has no UI control to click when their
+    // hand is empty, so we must submit that forced pass here instead).
+    while (!state.gameOver) {
+      const active = CardGame.actingPlayer(state);
+      if (active === 2) {
+        const move =
+          state.player2Hand.length === 0 ? { type: 'pass' } : Agent.chooseMove(weights, state);
+        CardGame.applyMove(state, 2, move);
+        maybeLogRoundResult();
+      } else if (active === 1 && state.player1Hand.length === 0) {
+        CardGame.applyMove(state, 1, { type: 'pass' });
+        maybeLogRoundResult();
+      } else {
+        break;
+      }
     }
   }
 
@@ -128,7 +140,7 @@
   }
 
   function afterHumanMove() {
-    runAgentTurnsIfAny();
+    runAutoMovesIfAny();
     if (state.gameOver) {
       const tally = loadTally();
       if (state.winner === 1) tally.you += 1;
@@ -143,7 +155,7 @@
     lastLoggedRound = 0;
     el.log.replaceChildren();
     logLine(`New game. ${state.firstPlayer === 1 ? 'You go' : 'Agent goes'} first.`);
-    runAgentTurnsIfAny(); // in case the agent happens to go first
+    runAutoMovesIfAny(); // in case the agent goes first, or the human somehow starts hand-empty
     render();
   }
 
