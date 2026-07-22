@@ -28,6 +28,25 @@ header, footer {
 header h1 { margin-bottom: 0.25rem; }
 .subtitle { color: var(--muted); max-width: 640px; margin: 0 auto; font-size: 0.9rem; }
 
+.opponent-picker {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.opponent-picker label { color: var(--muted); }
+.opponent-picker select {
+  background: var(--card-bg);
+  color: var(--text);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
 main#app {
   flex: 1;
   max-width: 720px;

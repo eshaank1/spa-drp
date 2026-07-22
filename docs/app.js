@@ -4,11 +4,20 @@
 
 (function () {
   const TALLY_KEY = 'spa-drp-tally';
+  const OPPONENT_NAMES = {
+    agent: 'Agent',
+    baseline: 'BaselineBot',
+    smart: 'SmartBot',
+    random: 'RandomBot',
+  };
   let weights = null;
   let state = null;
   let lastLoggedRound = 0;
+  let opponentKind = 'agent';
 
   const el = {
+    opponentSelect: document.getElementById('opponent-select'),
+    opponentNames: document.querySelectorAll('.opp-name'),
     tallyYou: document.getElementById('tally-you'),
     tallyAgent: document.getElementById('tally-agent'),
     roundNum: document.getElementById('round-num'),
@@ -64,7 +73,42 @@
     return playedCards.reduce((total, rank) => total + CardGame.RANK_VALUES[rank], 0);
   }
 
+  // Resolves Player 2's move using whichever opponent is currently selected.
+  // The trained Agent uses the fetched network weights; the three heuristic
+  // bots (docs/bots.js) are derived straight from the current game state.
+  function chooseOpponentMove(kind, gameState) {
+    const hand = gameState.player2Hand;
+    if (kind === 'agent') return Agent.chooseMove(weights, gameState);
+
+    const myScore = scoreOf(gameState.p2Played);
+    const oppScore = scoreOf(gameState.p1Played);
+    const isLastRound = gameState.currentRound >= 3;
+    const opponentJustPlayed = !gameState.passedPlayers.has(1);
+    const myRoundsWon = gameState.roundsWon[1];
+    const oppRoundsWon = gameState.roundsWon[0];
+
+    let result;
+    if (kind === 'baseline') {
+      result = Bots.baselineBotMove(
+        hand, myScore, oppScore, gameState.currentRound, myRoundsWon, oppRoundsWon,
+        gameState.passedPlayers.has(1)
+      );
+    } else if (kind === 'random') {
+      result = Bots.randomBotMove(
+        hand, myScore, oppScore, isLastRound, opponentJustPlayed, myRoundsWon, oppRoundsWon
+      );
+    } else {
+      result = Bots.smartBotMove(
+        hand, myScore, oppScore, isLastRound, opponentJustPlayed, myRoundsWon, oppRoundsWon
+      );
+    }
+    return result === 'PASS' ? { type: 'pass' } : { type: 'card', rank: result };
+  }
+
   function render() {
+    el.opponentNames.forEach((node) => {
+      node.textContent = OPPONENT_NAMES[opponentKind];
+    });
     el.roundNum.textContent = Math.min(state.currentRound, 3);
     el.roundsYou.textContent = state.roundsWon[0];
     el.roundsAgent.textContent = state.roundsWon[1];
@@ -98,7 +142,7 @@
     if (state.gameOver) {
       el.gameOver.hidden = false;
       el.gameOverMessage.textContent =
-        state.winner === 1 ? 'Game Over — You won!' : 'Game Over — Agent won!';
+        state.winner === 1 ? 'Game Over — You won!' : `Game Over — ${OPPONENT_NAMES[opponentKind]} won!`;
     } else {
       el.gameOver.hidden = true;
     }
@@ -124,7 +168,7 @@
       const active = CardGame.actingPlayer(state);
       if (active === 2) {
         const move =
-          state.player2Hand.length === 0 ? { type: 'pass' } : Agent.chooseMove(weights, state);
+          state.player2Hand.length === 0 ? { type: 'pass' } : chooseOpponentMove(opponentKind, state);
         CardGame.applyMove(state, 2, move);
         maybeLogRoundResult();
       } else if (active === 1 && state.player1Hand.length === 0) {
@@ -164,13 +208,17 @@
     state = CardGame.createGame(Math.random);
     lastLoggedRound = 0;
     el.log.replaceChildren();
-    logLine(`New game. ${state.firstPlayer === 1 ? 'You go' : 'Agent goes'} first.`);
+    logLine(`New game. ${state.firstPlayer === 1 ? 'You go' : `${OPPONENT_NAMES[opponentKind]} goes`} first.`);
     runAutoMovesIfAny(); // in case the agent goes first, or the human somehow starts hand-empty
     render();
   }
 
   el.passBtn.addEventListener('click', onPass);
   el.playAgainBtn.addEventListener('click', startGame);
+  el.opponentSelect.addEventListener('change', () => {
+    opponentKind = el.opponentSelect.value;
+    if (weights !== null) startGame(); // only once the initial load has completed
+  });
 
   fetch('agent_weights.json')
     .then((res) => {
