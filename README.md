@@ -30,7 +30,39 @@ Try beating the agent yourself, right in your browser — no setup required:
 
 **[Play now](https://eshaank1.github.io/spa-drp/)**
 
-The page runs the trained network (`bc_ppo_fd/agent_final.pt`) entirely client-side in JavaScript; see `docs/` for the source and `scripts/export_agent_weights.py` for how the weights get exported from the PyTorch checkpoint.
+Pick your opponent from the dropdown: the trained BC+PPO-fD agent (`bc_ppo_fd/agent_final.pt`), or any of the three heuristic bots — BaselineBot, SmartBot, RandomBot — then play a full best-of-3 game. Everything runs entirely client-side in JavaScript, no backend:
+
+- `docs/agent.js` reimplements the trained network's forward pass (weights exported once via `scripts/export_agent_weights.py`)
+- `docs/bots.js` ports `baseline_bot.py` / `smart_bot.py` / `random_bot.py`'s decision logic
+- `docs/game.js` is the game-rules engine; `docs/app.js` wires it all to the page
+
+`tests/web/` has the JS test suite (`node --test tests/web/*.test.js`), including a numerical-fidelity check of the ported network against the real PyTorch model.
+
+---
+
+## BC + PPO-fD Training Pipeline
+
+The agent behind the web demo (`bc_ppo_fd/agent_final.pt`) is trained by a separate, newer pipeline from the ladder system described above — Behavioral Cloning warm-start followed by PPO from Demonstrations (PPO-fD):
+
+1. **Phase 1 — Behavioral Cloning warm-start.** The actual PPO actor-critic network (not a throwaway model) is pre-trained by supervised learning on real BaselineBot-vs-BaselineBot demonstration games (`bc_ppo_fd/collect_bc_demonstrations.py`), so PPO starts from a competent policy instead of random weights.
+2. **Phase 2 — PPO-fD online training.** The warm-started network is then refined with PPO against a rotating opponent pool (BaselineBot, SmartBot, and frozen self-play snapshots of earlier checkpoints), while an auxiliary imitation (cross-entropy) loss against the offline demonstration buffer keeps every update anchored to sound fundamentals — this is the "fD" (from Demonstrations) part of PPO-fD.
+3. **Decaying the imitation anchor.** Early runs kept the auxiliary loss weight (`bc_lambda`) fixed for the whole run, which permanently pinned the policy to a BaselineBot clone and prevented PPO from ever improving past it (win rate plateaued around 50-54%, a coin flip, no matter how many more steps were added). The fix: `bc_lambda` now decays linearly (0.2 → 0.02) over training so PPO is increasingly free to diverge from the BC anchor once it has a decent starting point.
+
+**Current result:** a consistent, reproducible edge over both heuristic bots — **56-63% win rate vs BaselineBot and vs SmartBot**, measured over 500 games per opponent across 3 random seeds (deterministic policy). The deployed web demo samples stochastically from the same policy, matching how it's evaluated interactively via `game_with_bots.py`.
+
+```bash
+# Train from scratch (BC warm-start + PPO-fD)
+python3 bc_ppo_fd/train_bc_ppo_fde.py --num-bc-games 5000 --num-ppo-steps 4000 \
+--bc-lambda-start 0.2 --bc-lambda-end 0.02 --entropy-coeff 0.02
+
+# Evaluate vs BaselineBot / SmartBot
+python3 bc_ppo_fd/evaluate_agent_vs_baseline.py --num-games 200
+
+# Play it yourself in the terminal, or in the browser (see above)
+python3 bc_ppo_fd/play_vs_trained_agent.py
+```
+
+See `bc_ppo_fd/COMMANDS.md` and `bc_ppo_fd/BC_PPO_FD_GUIDE.md` for the full command reference.
 
 ---
 
@@ -39,6 +71,7 @@ The page runs the trained network (`bc_ppo_fd/agent_final.pt`) entirely client-s
 ```
 .
 ├── card_game.py                    # Core card game logic and rules
+├── baseline_bot.py                 # Deficit-tracking heuristic strategy
 ├── smart_bot.py                    # Heuristic-based baseline strategy
 ├── random_bot.py                   # Random play baseline
 ├── play_vs_ppo.py                  # Interactive human vs bot gameplay
@@ -51,6 +84,24 @@ The page runs the trained network (`bc_ppo_fd/agent_final.pt`) entirely client-s
 │   ├── train_ladder_challenger.py  # Single generation trainer
 │   ├── train_ppo_vs_smart.py      # Direct SmartBot training
 │   └── models/                     # Trained PPO models
+│
+├── bc_ppo_fd/                      # BC + PPO-fD training pipeline
+│   ├── train_bc_ppo_fde.py        # BC warm-start + PPO-fD vs an opponent pool
+│   ├── ppo_auxiliary_loss.py      # ActorCriticNetwork + PPO-fD update
+│   ├── agent_final.pt             # Trained checkpoint (source of the web demo)
+│   ├── play_vs_trained_agent.py   # Terminal human-vs-agent play
+│   └── evaluate_agent_vs_baseline.py
+│
+├── docs/                           # Play-vs-agent web demo (GitHub Pages)
+│   ├── index.html, style.css, app.js
+│   ├── game.js                    # Game-rules engine (pure JS)
+│   ├── agent.js                   # Trained network forward pass (pure JS)
+│   └── bots.js                    # BaselineBot/SmartBot/RandomBot ports
+│
+├── scripts/
+│   └── export_agent_weights.py    # Exports agent_final.pt -> docs/agent_weights.json
+│
+├── tests/web/                      # node --test suite for docs/*.js
 │
 ├── models/
 │   ├── ladder/
