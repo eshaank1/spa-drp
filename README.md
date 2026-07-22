@@ -6,7 +6,7 @@
 
 **Author:** Eshaan Kumar  
 **Mentor:** Ph.D. Candidate Alex Kokot  
-**Term:** Spring 2026
+**Term:** Spring & Summer 2026
 
 ---
 
