@@ -138,6 +138,14 @@ button.card:disabled { opacity: 0.4; cursor: default; transform: none; }
 
 .hand-count { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
 
+.pass-indicator {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--muted);
+}
+.pass-indicator[hidden] { display: none; }
+
 footer a, .subtitle a { color: var(--accent); }
 
 @media (max-width: 480px) {

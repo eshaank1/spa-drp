@@ -18,6 +18,7 @@
     agentRoundScore: document.getElementById('agent-round-score'),
     youRoundScore: document.getElementById('you-round-score'),
     agentPlayed: document.getElementById('agent-played'),
+    agentPassIndicator: document.getElementById('agent-pass-indicator'),
     youPlayed: document.getElementById('you-played'),
     yourHand: document.getElementById('your-hand'),
     passBtn: document.getElementById('pass-btn'),
@@ -71,6 +72,7 @@
     el.agentRoundScore.textContent = scoreOf(state.p2Played);
     el.youRoundScore.textContent = scoreOf(state.p1Played);
 
+    el.agentPassIndicator.hidden = !state.passedPlayers.has(2);
     el.agentPlayed.replaceChildren(...state.p2Played.map((r) => cardEl(r, 'span')));
     el.youPlayed.replaceChildren(...state.p1Played.map((r) => cardEl(r, 'span')));
 
