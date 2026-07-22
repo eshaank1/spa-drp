@@ -33,7 +33,7 @@ const Agent = (function () {
     obs[m + 1] = state.roundsWon[1] / 2.0; // my (agent's) rounds won
     obs[m + 2] = state.roundsWon[0] / 2.0; // opponent's rounds won
     obs[m + 3] = 1.0; // it is my turn (always true at decision time)
-    obs[m + 4] = 0.0; // reserved, unused (matches play_vs_trained_agent.py)
+    obs[m + 4] = 0.0; // opponent's-turn flag; always 0 since the agent is to-move at decision time
     obs[m + 5] = state.firstPlayer === 2 ? 1.0 : 0.0;
     obs[m + 6] = state.firstPlayer === 1 ? 1.0 : 0.0;
     obs[m + 7] = 0.0; // I have passed — false at decision time

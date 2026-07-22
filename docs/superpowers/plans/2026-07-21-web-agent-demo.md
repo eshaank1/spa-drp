@@ -1196,7 +1196,7 @@ Play until at least one player runs out of cards before a round ends (should for
 
 - [ ] **Step 4: Fix any bugs found, re-verify, then commit**
 
-If Steps 1-3 surfaced any bug, fix it in `docs/game.js` or `docs/app.js`, rerun the relevant Node test suite (`node --test tests/web/`) to confirm no regressions, then repeat the failing playtest scenario in the browser to confirm the fix. If no bugs were found, skip the fix and just record that verification passed.
+If Steps 1-3 surfaced any bug, fix it in `docs/game.js` or `docs/app.js`, rerun the relevant Node test suite (`node --test tests/web/*.test.js` — note the glob: `node --test tests/web/` alone fails on Node v24, which tries to load the directory as a module) to confirm no regressions, then repeat the failing playtest scenario in the browser to confirm the fix. If no bugs were found, skip the fix and just record that verification passed.
 
 ```bash
 git add -A
