@@ -15,6 +15,8 @@
     roundsYou: document.getElementById('rounds-you'),
     roundsAgent: document.getElementById('rounds-agent'),
     agentHandCount: document.getElementById('agent-hand-count'),
+    agentRoundScore: document.getElementById('agent-round-score'),
+    youRoundScore: document.getElementById('you-round-score'),
     agentPlayed: document.getElementById('agent-played'),
     youPlayed: document.getElementById('you-played'),
     yourHand: document.getElementById('your-hand'),
@@ -57,11 +59,17 @@
     return node;
   }
 
+  function scoreOf(playedCards) {
+    return playedCards.reduce((total, rank) => total + CardGame.RANK_VALUES[rank], 0);
+  }
+
   function render() {
     el.roundNum.textContent = Math.min(state.currentRound, 3);
     el.roundsYou.textContent = state.roundsWon[0];
     el.roundsAgent.textContent = state.roundsWon[1];
     el.agentHandCount.textContent = state.player2Hand.length;
+    el.agentRoundScore.textContent = scoreOf(state.p2Played);
+    el.youRoundScore.textContent = scoreOf(state.p1Played);
 
     el.agentPlayed.replaceChildren(...state.p2Played.map((r) => cardEl(r, 'span')));
     el.youPlayed.replaceChildren(...state.p1Played.map((r) => cardEl(r, 'span')));
@@ -88,7 +96,7 @@
     if (state.gameOver) {
       el.gameOver.hidden = false;
       el.gameOverMessage.textContent =
-        state.winner === 1 ? 'You win the game!' : 'The agent wins the game.';
+        state.winner === 1 ? 'Game Over — You won!' : 'Game Over — Agent won!';
     } else {
       el.gameOver.hidden = true;
     }

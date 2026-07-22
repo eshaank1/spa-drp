@@ -25,13 +25,13 @@
 
     <section id="table">
       <div class="player-area">
-        <h2>Agent (Player 2)</h2>
+        <h2>Agent (Player 2) <span class="round-score" id="agent-round-score">0</span></h2>
         <div class="hand-count"><span id="agent-hand-count">7</span> cards in hand</div>
         <div class="played" id="agent-played"></div>
       </div>
 
       <div class="player-area">
-        <h2>You (Player 1)</h2>
+        <h2>You (Player 1) <span class="round-score" id="you-round-score">0</span></h2>
         <div class="played" id="you-played"></div>
         <div class="hand" id="your-hand"></div>
         <button id="pass-btn" disabled>Pass</button>
@@ -41,8 +41,10 @@
     <section id="log" aria-live="polite"></section>
 
     <section id="game-over" hidden>
-      <p id="game-over-message"></p>
-      <button id="play-again-btn">Play again</button>
+      <div class="modal-box">
+        <p id="game-over-message"></p>
+        <button id="play-again-btn">Play again</button>
+      </div>
     </section>
   </main>
 
