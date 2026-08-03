@@ -100,6 +100,8 @@ class PlayVsTrainedAgent:
         # Get observation from agent's perspective (player 2)
         obs = self._get_obs_from_perspective(hand, p1_played, p2_played, opponent_just_played, opponent_has_passed)
         mask = self._get_valid_actions_mask(hand)
+        if self._is_critical():
+            mask[0] = 0.0  # final round: cards have no future value, never pass while holding one
         
         obs_t = torch.tensor(obs, dtype=torch.float32, device=self.device)
         mask_t = torch.tensor(mask, dtype=torch.float32, device=self.device)
@@ -152,6 +154,12 @@ class PlayVsTrainedAgent:
         obs[metadata_start + 10] = len(self.player1_hand) / 13.0  # opponent hand size
 
         return obs
+
+    def _is_critical(self) -> bool:
+        """A must-win round for the agent (Player 2): either the literal last
+        round, or Player 1 already has 1 round win so losing this one ends
+        the game."""
+        return self.current_round >= 3 or self.rounds_won[0] == 1
 
     def _get_valid_actions_mask(self, hand: List[str]) -> np.ndarray:
         """Create action mask from hand."""

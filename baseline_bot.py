@@ -39,8 +39,10 @@ class BaselineBot:
 
         # ── Opponent has passed: their score is locked, we act freely ───────
         if opponent_has_passed:
-            if deficit < 0:           # already winning — stop spending cards
-                return 0
+            if deficit < 0:
+                if critical:          # final round: cards have no future value, keep padding score
+                    return self.RANK_VALUES[sorted_hand[0]]
+                return 0              # already winning — stop spending cards
             if winning_cards:         # can take the lead with smallest efficient card
                 return self.RANK_VALUES[winning_cards[0]]
             if critical:              # can't win but must try — best effort

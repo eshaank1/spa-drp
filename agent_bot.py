@@ -76,6 +76,8 @@ class AgentBot:
             opp_hand_size, first_player_is_me, i_have_passed,
         )
         mask = self._valid_actions_mask(hand)
+        if self._is_critical(round_num, opp_wins):
+            mask[0] = 0.0  # final round: cards have no future value, never pass while holding one
 
         obs_t = torch.tensor(obs, dtype=torch.float32, device=self.device).unsqueeze(0)
         mask_t = torch.tensor(mask, dtype=torch.float32, device=self.device).unsqueeze(0)
@@ -133,6 +135,12 @@ class AgentBot:
         if opp_hand_size is not None:
             obs[49] = opp_hand_size / 13.0
         return obs
+
+    @staticmethod
+    def _is_critical(round_num, opp_wins) -> bool:
+        """A must-win round: either the literal last round, or the opponent
+        already has 1 round win so losing this one ends the game."""
+        return round_num >= 3 or opp_wins == 1
 
     def _valid_actions_mask(self, hand) -> np.ndarray:
         mask = np.zeros(14, dtype=np.float32)

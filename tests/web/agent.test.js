@@ -72,3 +72,38 @@ test('chooseMove always passes when the agent has an empty hand', () => {
   const move = Agent.chooseMove(weights, state);
   assert.deepEqual(move, { type: 'pass' });
 });
+
+test('buildMask disallows pass in round 3 (final round)', () => {
+  const state = CardGame.createGame(mulberry32(2));
+  state.currentRound = 3;
+  const mask = Agent.buildMask(['K', '2'], state);
+  assert.equal(mask[0], 0);
+});
+
+test('buildMask disallows pass in round 2 when round 1 was a tie', () => {
+  const state = CardGame.createGame(mulberry32(3));
+  state.currentRound = 2;
+  state.roundsWon = [1, 1]; // a round-1 tie awards both players a round win
+  const mask = Agent.buildMask(['K', '2'], state);
+  assert.equal(mask[0], 0);
+});
+
+test('buildMask allows pass in a non-critical round', () => {
+  const state = CardGame.createGame(mulberry32(4));
+  state.currentRound = 1;
+  state.roundsWon = [0, 0];
+  const mask = Agent.buildMask(['K', '2'], state);
+  assert.equal(mask[0], 1);
+});
+
+test('chooseMove never passes in a critical round while the agent holds cards', () => {
+  const rng = mulberry32(123);
+  for (let trial = 0; trial < 200; trial++) {
+    const state = CardGame.createGame(mulberry32(trial));
+    state.currentRound = Math.random() < 0.5 ? 3 : 2;
+    if (state.currentRound === 2) state.roundsWon = [1, 1];
+    if (state.player2Hand.length === 0) continue;
+    const move = Agent.chooseMove(weights, state, rng);
+    assert.equal(move.type, 'card');
+  }
+});

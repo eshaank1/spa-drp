@@ -70,7 +70,10 @@ const Bots = (function () {
     const winningCards = sortedHand.filter((c) => RANK_VALUES[c] > deficit);
 
     if (opponentHasPassed) {
-      if (deficit < 0) return 'PASS';
+      if (deficit < 0) {
+        if (critical) return sortedHand[0]; // final round: cards have no future value, keep padding score
+        return 'PASS';
+      }
       if (winningCards.length) return winningCards[0];
       if (critical) return sortedHand[sortedHand.length - 1];
       return 'PASS';

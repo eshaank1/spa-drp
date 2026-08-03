@@ -8,9 +8,17 @@ const Agent = (function () {
   // Must match CardGame.RANKS in game.js / GAME_RULES.md ordering.
   const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
-  function buildMask(hand) {
+  // A must-win round: either the literal last round, or the opponent (P1)
+  // already has 1 round win so losing this one ends the game. Cards held
+  // past this point have zero future value, so pass is never optimal while
+  // any remain.
+  function isCriticalRound(state) {
+    return state.currentRound >= 3 || state.roundsWon[0] === 1;
+  }
+
+  function buildMask(hand, state) {
     const mask = new Array(14).fill(0);
-    mask[0] = 1; // pass always valid
+    mask[0] = state && isCriticalRound(state) ? 0 : 1;
     for (const rank of hand) {
       const idx = RANKS.indexOf(rank);
       if (idx !== -1) mask[idx + 1] = 1;
@@ -92,7 +100,7 @@ const Agent = (function () {
     const hand = state.player2Hand;
     if (hand.length === 0) return { type: 'pass' };
     const obs = buildObservation(state);
-    const mask = buildMask(hand);
+    const mask = buildMask(hand, state);
     const logits = forward(weights, obs, mask);
     const probs = softmax(logits);
     const action = sampleAction(probs, rng);
@@ -102,6 +110,7 @@ const Agent = (function () {
 
   return {
     RANKS,
+    isCriticalRound,
     buildMask,
     buildObservation,
     forward,
