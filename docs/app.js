@@ -31,6 +31,9 @@
     youPlayed: document.getElementById('you-played'),
     yourHand: document.getElementById('your-hand'),
     passBtn: document.getElementById('pass-btn'),
+    roundOver: document.getElementById('round-over'),
+    roundOverMessage: document.getElementById('round-over-message'),
+    nextRoundBtn: document.getElementById('next-round-btn'),
     log: document.getElementById('log'),
     gameOver: document.getElementById('game-over'),
     gameOverMessage: document.getElementById('game-over-message'),
@@ -139,6 +142,17 @@
     el.tallyYou.textContent = tally.you;
     el.tallyAgent.textContent = tally.agent;
 
+    if (state.roundOver && !state.gameOver) {
+      const r = state.lastRoundResult;
+      const oppName = OPPONENT_NAMES[opponentKind];
+      const outcome =
+        r.winner === 'tie' ? 'Tied the round.' : r.winner === 1 ? 'You won the round.' : `${oppName} won the round.`;
+      el.roundOverMessage.textContent = `Round ${r.round} complete — You ${r.p1Score}, ${oppName} ${r.p2Score}. ${outcome}`;
+      el.roundOver.hidden = false;
+    } else {
+      el.roundOver.hidden = true;
+    }
+
     if (state.gameOver) {
       el.gameOver.hidden = false;
       el.gameOverMessage.textContent =
@@ -204,6 +218,12 @@
     render();
   }
 
+  function onNextRound() {
+    CardGame.startNextRound(state);
+    runAutoMovesIfAny();
+    render();
+  }
+
   function startGame() {
     state = CardGame.createGame(Math.random);
     lastLoggedRound = 0;
@@ -214,6 +234,7 @@
   }
 
   el.passBtn.addEventListener('click', onPass);
+  el.nextRoundBtn.addEventListener('click', onNextRound);
   el.playAgainBtn.addEventListener('click', startGame);
   el.opponentSelect.addEventListener('change', () => {
     opponentKind = el.opponentSelect.value;

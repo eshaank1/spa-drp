@@ -41,6 +41,7 @@ const CardGame = (function () {
       gameOver: false,
       winner: null,
       lastRoundResult: null,
+      roundOver: false,
     };
   }
 
@@ -122,6 +123,21 @@ const CardGame = (function () {
       return;
     }
 
+    // Leave the played cards on the table and stop here — the caller (the
+    // UI) decides when to actually start the next round, so the player can
+    // see the full round result before it's cleared.
+    state.roundOver = true;
+  }
+
+  // Clears the finished round's table and deals the next one. Only valid
+  // once finishRound has paused the game with roundOver = true.
+  function startNextRound(state) {
+    if (state.gameOver) {
+      throw new Error('game is already over');
+    }
+    if (!state.roundOver) {
+      throw new Error('current round has not finished yet');
+    }
     state.p1Played = [];
     state.p2Played = [];
     state.passedPlayers = new Set();
@@ -130,6 +146,7 @@ const CardGame = (function () {
       drawPhase(state);
       state.currentRound += 1;
     }
+    state.roundOver = false;
   }
 
   // Applies a move for `player`. `move` is either {type:'pass'} or
@@ -170,6 +187,7 @@ const CardGame = (function () {
     RANK_VALUES,
     createGame,
     applyMove,
+    startNextRound,
     actingPlayer,
     opponent,
     handOf,

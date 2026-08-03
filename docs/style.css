@@ -118,6 +118,26 @@ button.card:disabled { opacity: 0.4; cursor: default; transform: none; }
 #pass-btn:hover { border-color: var(--accent); }
 #pass-btn:disabled { opacity: 0.4; cursor: default; }
 
+#round-over {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+#round-over[hidden] { display: none; }
+#round-over-message { margin: 0 0 0.75rem; font-weight: 600; }
+#next-round-btn {
+  padding: 0.5rem 1.25rem;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 #log {
   font-size: 0.85rem;
   color: var(--muted);

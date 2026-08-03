@@ -57,7 +57,7 @@ test('playing a card moves it from hand to played and switches the turn', () => 
   assert.equal(CardGame.actingPlayer(state), 2);
 });
 
-test('both players passing ends the round and scores it', () => {
+test('both players passing ends the round, scores it, and pauses before the next round', () => {
   const state = freshState({
     player1Hand: ['K'],
     player2Hand: ['2'],
@@ -71,7 +71,40 @@ test('both players passing ends the round and scores it', () => {
   assert.equal(state.roundsWon[0], 1);
   assert.equal(state.roundsWon[1], 0);
   assert.equal(state.lastRoundResult.winner, 1);
+
+  // Round is over but must NOT auto-advance: the played cards stay on the
+  // table, and currentRound doesn't move, until the UI calls startNextRound.
+  assert.equal(state.roundOver, true);
+  assert.equal(state.currentRound, 1);
+  assert.deepEqual(state.p1Played, ['K']);
+  assert.deepEqual(state.p2Played, ['2']);
+
+  CardGame.startNextRound(state);
+  assert.equal(state.roundOver, false);
   assert.equal(state.currentRound, 2);
+  assert.deepEqual(state.p1Played, []);
+  assert.deepEqual(state.p2Played, []);
+  assert.deepEqual(state.passedPlayers, new Set());
+});
+
+test('startNextRound throws if the round has not finished yet', () => {
+  const state = freshState({ player1Hand: ['K'], player2Hand: ['2'] });
+  assert.throws(() => CardGame.startNextRound(state));
+});
+
+test('startNextRound throws once the game is over', () => {
+  const state = freshState({
+    roundsWon: [1, 0],
+    currentRound: 2,
+    player1Hand: ['K'],
+    player2Hand: ['2'],
+  });
+  CardGame.applyMove(state, 1, { type: 'card', rank: 'K' });
+  CardGame.applyMove(state, 2, { type: 'card', rank: '2' });
+  CardGame.applyMove(state, 1, { type: 'pass' });
+  CardGame.applyMove(state, 2, { type: 'pass' });
+  assert.equal(state.gameOver, true);
+  assert.throws(() => CardGame.startNextRound(state));
 });
 
 test('a tied round awards both players a round win', () => {
