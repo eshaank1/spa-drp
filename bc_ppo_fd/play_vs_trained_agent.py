@@ -61,6 +61,7 @@ class PlayVsTrainedAgent:
         self.rounds_won = [0, 0]
         self.current_round = 1
         self.first_player = random.choice([1, 2])
+        self.round1_scores = None  # (p1_score, p2_score), set once round 1 finishes
 
     def display_game_state(self, player_num: int):
         """Display current state for a player"""
@@ -102,6 +103,8 @@ class PlayVsTrainedAgent:
         mask = self._get_valid_actions_mask(hand)
         if self._is_critical():
             mask[0] = 0.0  # final round: cards have no future value, never pass while holding one
+        elif self._should_conserve(p1_played, p2_played):
+            mask[1:] = 0.0  # force pass: guaranteed round-3 (and game) win by conserving now
         
         obs_t = torch.tensor(obs, dtype=torch.float32, device=self.device)
         mask_t = torch.tensor(mask, dtype=torch.float32, device=self.device)
@@ -160,6 +163,20 @@ class PlayVsTrainedAgent:
         round, or Player 1 already has 1 round win so losing this one ends
         the game."""
         return self.current_round >= 3 or self.rounds_won[0] == 1
+
+    def _should_conserve(self, p1_played: List[str], p2_played: List[str]) -> bool:
+        """Round 2, already up 1-0 (won round 1 outright): if the current
+        deficit already exceeds how much round 1 was won by, passing now
+        guarantees a round 3 (and game) win — see baseline_bot.py's
+        decide_move for the full argument."""
+        can_sacrifice = self.rounds_won[1] == 1 and self.rounds_won[0] == 0
+        if not can_sacrifice or self.current_round != 2 or self.round1_scores is None:
+            return False
+        round1_margin = self.round1_scores[1] - self.round1_scores[0]  # agent is P2
+        p1_score = sum(self.RANK_VALUES[c] for c in p1_played)
+        p2_score = sum(self.RANK_VALUES[c] for c in p2_played)
+        deficit = p1_score - p2_score
+        return deficit > round1_margin
 
     def _get_valid_actions_mask(self, hand: List[str]) -> np.ndarray:
         """Create action mask from hand."""
@@ -272,6 +289,9 @@ class PlayVsTrainedAgent:
         print(f"\n--- Round {self.current_round} Results ---")
         print(f"You total: {p1_score}")
         print(f"Agent total: {p2_score}")
+
+        if self.current_round == 1:
+            self.round1_scores = (p1_score, p2_score)
 
         if p1_score > p2_score:
             print("YOU WIN THIS ROUND!")

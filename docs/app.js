@@ -90,11 +90,17 @@
     const myRoundsWon = gameState.roundsWon[1];
     const oppRoundsWon = gameState.roundsWon[0];
 
+    // Round 1's result, still held in lastRoundResult while round 2 is in
+    // progress (startNextRound doesn't clear it) — needed for the round-2
+    // conservation rule.
+    const r1 = gameState.lastRoundResult;
+    const round1Margin = r1 && r1.round === 1 ? r1.p2Score - r1.p1Score : null;
+
     let result;
     if (kind === 'baseline') {
       result = Bots.baselineBotMove(
         hand, myScore, oppScore, gameState.currentRound, myRoundsWon, oppRoundsWon,
-        gameState.passedPlayers.has(1)
+        gameState.passedPlayers.has(1), round1Margin
       );
     } else if (kind === 'random') {
       result = Bots.randomBotMove(

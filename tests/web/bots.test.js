@@ -43,3 +43,31 @@ test('baselineBotMove treats round 2 after a round-1 tie as critical', () => {
   );
   assert.notEqual(move, 'PASS');
 });
+
+test('baselineBotMove conserves in round 2 when the deficit exceeds the round-1 margin', () => {
+  const move = Bots.baselineBotMove(
+    ['K', 'Q'], // even a card that could flip the current lead
+    2, // myScore
+    10, // oppScore -> deficit = 8
+    2, // roundNum
+    1, // myWins (won round 1)
+    0, // oppWins
+    false,
+    5 // round1Margin: won round 1 by only 5, deficit (8) exceeds it
+  );
+  assert.equal(move, 'PASS');
+});
+
+test('baselineBotMove keeps fighting in round 2 when the deficit is still within the round-1 margin', () => {
+  const move = Bots.baselineBotMove(
+    ['K', 'Q'],
+    2,
+    10, // deficit = 8
+    2,
+    1,
+    0,
+    false,
+    10 // round1Margin: won round 1 by 10, still ahead of the round-2 deficit
+  );
+  assert.notEqual(move, 'PASS');
+});

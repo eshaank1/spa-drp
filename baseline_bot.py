@@ -21,7 +21,7 @@ class BaselineBot:
                    8:'8', 9:'9', 10:'10', 11:'J', 12:'Q', 13:'K'}
 
     def decide_move(self, hand, my_score, opp_score, round_num,
-                    my_wins, opp_wins, opponent_has_passed):
+                    my_wins, opp_wins, opponent_has_passed, round1_margin=None):
 
         if not hand:
             return 0  # PASS
@@ -33,6 +33,16 @@ class BaselineBot:
         is_last_round = (round_num >= 3)
         critical = must_win or is_last_round
         can_sacrifice = (my_wins == 1 and opp_wins == 0)  # 1-0 up, can afford to drop a round
+
+        # Round 2, already up 1-0: if the current deficit already exceeds how
+        # much round 1 was won by, we've provably spent less total card value
+        # than the opponent so far. Passing now only preserves that gap (the
+        # opponent's spend can only grow from here), so we're guaranteed to
+        # enter round 3 with strictly more remaining hand value than them —
+        # and since round 3 forces a full hand-dump on both sides, that's a
+        # guaranteed round 3 (and therefore game) win. Always concede here.
+        if can_sacrifice and round1_margin is not None and deficit > round1_margin:
+            return 0
 
         # Cards that flip the lead in one play (value must exceed current deficit)
         winning_cards = [c for c in sorted_hand if self.RANK_VALUES[c] > deficit]

@@ -56,7 +56,8 @@ class AgentBot:
     def decide_move(self, hand, my_score, opp_score, round_num,
                     my_wins, opp_wins, opponent_has_passed,
                     my_played=None, opp_played=None, opp_hand_size=None,
-                    first_player_is_me=None, i_have_passed=False):
+                    first_player_is_me=None, i_have_passed=False,
+                    round1_margin=None):
         """
         Decide a move from the agent's own perspective.
 
@@ -78,6 +79,8 @@ class AgentBot:
         mask = self._valid_actions_mask(hand)
         if self._is_critical(round_num, opp_wins):
             mask[0] = 0.0  # final round: cards have no future value, never pass while holding one
+        elif self._should_conserve(round_num, my_wins, opp_wins, opp_score - my_score, round1_margin):
+            mask[1:] = 0.0  # force pass: guaranteed round-3 (and game) win by conserving now
 
         obs_t = torch.tensor(obs, dtype=torch.float32, device=self.device).unsqueeze(0)
         mask_t = torch.tensor(mask, dtype=torch.float32, device=self.device).unsqueeze(0)
@@ -141,6 +144,14 @@ class AgentBot:
         """A must-win round: either the literal last round, or the opponent
         already has 1 round win so losing this one ends the game."""
         return round_num >= 3 or opp_wins == 1
+
+    @staticmethod
+    def _should_conserve(round_num, my_wins, opp_wins, deficit, round1_margin) -> bool:
+        """Round 2, already up 1-0: if the deficit already exceeds how much
+        round 1 was won by, conserving now guarantees a round 3 (and game)
+        win — see baseline_bot.py's decide_move for the full argument."""
+        can_sacrifice = my_wins == 1 and opp_wins == 0
+        return can_sacrifice and round1_margin is not None and deficit > round1_margin
 
     def _valid_actions_mask(self, hand) -> np.ndarray:
         mask = np.zeros(14, dtype=np.float32)

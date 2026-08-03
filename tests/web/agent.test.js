@@ -96,6 +96,29 @@ test('buildMask allows pass in a non-critical round', () => {
   assert.equal(mask[0], 1);
 });
 
+test('buildMask forces pass in round 2 when the deficit exceeds the round-1 margin', () => {
+  const state = CardGame.createGame(mulberry32(6));
+  state.currentRound = 2;
+  state.roundsWon = [0, 1]; // agent (P2) won round 1, human has 0
+  state.lastRoundResult = { round: 1, p1Score: 5, p2Score: 10 }; // agent won round 1 by 5
+  state.p1Played = ['K']; // human at 13
+  state.p2Played = ['2']; // agent at 2 -> deficit = 11 > round1Margin (5)
+  const mask = Agent.buildMask(['Q', 'J'], state);
+  assert.equal(mask[0], 1);
+  assert.deepEqual(mask.slice(1), new Array(13).fill(0));
+});
+
+test('buildMask does not force pass in round 2 when the deficit is within the round-1 margin', () => {
+  const state = CardGame.createGame(mulberry32(7));
+  state.currentRound = 2;
+  state.roundsWon = [0, 1];
+  state.lastRoundResult = { round: 1, p1Score: 2, p2Score: 12 }; // agent won round 1 by 10
+  state.p1Played = ['K']; // human at 13
+  state.p2Played = ['5']; // agent at 5 -> deficit = 8, within round1Margin (10)
+  const mask = Agent.buildMask(['Q', 'J'], state);
+  assert.equal(mask.slice(1).some((v) => v === 1), true);
+});
+
 test('chooseMove never passes in a critical round while the agent holds cards', () => {
   const rng = mulberry32(123);
   for (let trial = 0; trial < 200; trial++) {

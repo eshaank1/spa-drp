@@ -16,12 +16,38 @@ const Agent = (function () {
     return state.currentRound >= 3 || state.roundsWon[0] === 1;
   }
 
+  function cardValue(rank) {
+    return RANKS.indexOf(rank) + 1; // A=1, 2=2, ..., K=13
+  }
+
+  function scoreOf(playedRanks) {
+    return playedRanks.reduce((total, r) => total + cardValue(r), 0);
+  }
+
+  // Round 2, already up 1-0 (won round 1 outright): if the current deficit
+  // already exceeds how much round 1 was won by, passing now guarantees a
+  // round 3 (and game) win — see baseline_bot.py's decide_move for the full
+  // argument. state.lastRoundResult still holds round 1's result at this
+  // point since startNextRound (game.js) doesn't clear it.
+  function shouldConserveForRound3(state) {
+    if (state.currentRound !== 2 || state.roundsWon[1] !== 1 || state.roundsWon[0] !== 0) return false;
+    const r1 = state.lastRoundResult;
+    if (!r1 || r1.round !== 1) return false;
+    const round1Margin = r1.p2Score - r1.p1Score; // agent is P2
+    const deficit = scoreOf(state.p1Played) - scoreOf(state.p2Played); // opponent - me
+    return deficit > round1Margin;
+  }
+
   function buildMask(hand, state) {
     const mask = new Array(14).fill(0);
     mask[0] = state && isCriticalRound(state) ? 0 : 1;
     for (const rank of hand) {
       const idx = RANKS.indexOf(rank);
       if (idx !== -1) mask[idx + 1] = 1;
+    }
+    if (state && shouldConserveForRound3(state)) {
+      mask.fill(0);
+      mask[0] = 1; // force pass
     }
     return mask;
   }
@@ -111,6 +137,7 @@ const Agent = (function () {
   return {
     RANKS,
     isCriticalRound,
+    shouldConserveForRound3,
     buildMask,
     buildObservation,
     forward,

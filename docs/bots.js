@@ -58,7 +58,7 @@ const Bots = (function () {
   }
 
   // Mirrors baseline_bot.py's BaselineBot.decide_move.
-  function baselineBotMove(hand, myScore, oppScore, roundNum, myWins, oppWins, opponentHasPassed) {
+  function baselineBotMove(hand, myScore, oppScore, roundNum, myWins, oppWins, opponentHasPassed, round1Margin) {
     if (hand.length === 0) return 'PASS';
 
     const sortedHand = hand.slice().sort((a, b) => RANK_VALUES[a] - RANK_VALUES[b]);
@@ -67,6 +67,12 @@ const Bots = (function () {
     const isLastRound = roundNum >= 3;
     const critical = mustWin || isLastRound;
     const canSacrifice = myWins === 1 && oppWins === 0;
+
+    // Round 2, already up 1-0: if the deficit already exceeds how much round
+    // 1 was won by, conserving now guarantees a round 3 (and game) win — see
+    // baseline_bot.py's decide_move for the full argument.
+    if (canSacrifice && round1Margin != null && deficit > round1Margin) return 'PASS';
+
     const winningCards = sortedHand.filter((c) => RANK_VALUES[c] > deficit);
 
     if (opponentHasPassed) {

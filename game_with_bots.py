@@ -42,6 +42,7 @@ class CardGameWithBots:
         self.rounds_won = [0, 0]
         self.current_round = 1
         self.first_player = random.choice([1, 2])
+        self.round1_scores = None  # (p1_score, p2_score), set once round 1 finishes
 
     def _create_bot(self, player_type):
         """Create a bot instance if needed"""
@@ -69,6 +70,9 @@ class CardGameWithBots:
             opponent_score = sum(self.RANK_VALUES[card] for card in p2_played)
             my_wins = self.rounds_won[0]
             opp_wins = self.rounds_won[1]
+            round1_margin = (
+                self.round1_scores[0] - self.round1_scores[1] if self.round1_scores else None
+            )
         else:
             bot = self.player2_bot
             bot_type = self.player2_type
@@ -80,6 +84,9 @@ class CardGameWithBots:
             opponent_score = sum(self.RANK_VALUES[card] for card in p1_played)
             my_wins = self.rounds_won[1]
             opp_wins = self.rounds_won[0]
+            round1_margin = (
+                self.round1_scores[1] - self.round1_scores[0] if self.round1_scores else None
+            )
 
         is_last_round = (self.current_round == 3)
 
@@ -99,6 +106,7 @@ class CardGameWithBots:
                 opp_hand_size=opp_hand_size,
                 first_player_is_me=(self.first_player == player_num),
                 i_have_passed=False,
+                round1_margin=round1_margin,
             )
             if result == 0:
                 return 'PASS'
@@ -117,6 +125,7 @@ class CardGameWithBots:
                 my_wins=my_wins,
                 opp_wins=opp_wins,
                 opponent_has_passed=opponent_has_passed,
+                round1_margin=round1_margin,
             )
             # Returns 0 for PASS or a card value (1-13)
             if result == 0:
@@ -309,6 +318,9 @@ class CardGameWithBots:
         print(f"\n--- Round {self.current_round} Results ---")
         print(f"Player 1 total: {p1_score}")
         print(f"Player 2 total: {p2_score}")
+
+        if self.current_round == 1:
+            self.round1_scores = (p1_score, p2_score)
 
         if p1_score > p2_score:
             print("Player 1 WINS this round!")
